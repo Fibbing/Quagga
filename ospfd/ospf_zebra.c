@@ -742,7 +742,6 @@ int
 ospf_redistribute_check (struct ospf *ospf,
                          struct external_info *ei, int *changed)
 {
-  struct route_map_set_values save_values;
   struct prefix_ipv4 *p = &ei->p;
   u_char type = is_prefix_default (&ei->p) ? DEFAULT_ROUTE : ei->type;
 
@@ -769,13 +768,14 @@ ospf_redistribute_check (struct ospf *ospf,
           return 0;
         }
 
-  save_values = ei->route_map_set;
-  ospf_reset_route_map_set_values (&ei->route_map_set);
-
   /* apply route-map if needed */
   if (ROUTEMAP_NAME (ospf, type))
     {
       int ret;
+      struct route_map_set_values save_values;
+
+      save_values = ei->route_map_set;
+      ospf_reset_route_map_set_values (&ei->route_map_set);
 
       ret = route_map_apply (ROUTEMAP (ospf, type), (struct prefix *) p,
                              RMAP_OSPF, ei);
