@@ -7285,6 +7285,32 @@ config_write_ospf_distance (struct vty *vty, struct ospf *ospf)
   return 0;
 }
 
+static int
+config_write_fibbing (struct vty *vty, struct ospf *ospf)
+{
+  struct route_node *rn;
+
+  /* `fibbing' print. */
+  for (rn = route_top (EXTERNAL_INFO (ZEBRA_ROUTE_FIBBING));
+       rn; rn = route_next (rn))
+    if (rn->info)
+      {
+        struct external_info *ei = rn->info;
+
+        /* Fibbing print. */
+        vty_out (vty, " fibbing %s/%d via %s",
+             inet_ntoa (rn->p.u.prefix4), rn->p.prefixlen,
+             inet_ntoa (ei->nexthop));
+        if (ROUTEMAP_METRIC (ei) != -1)
+            vty_out (vty, " cost %d", ROUTEMAP_METRIC(ei));
+        if (ROUTEMAP_METRIC_TYPE (ei) != -1)
+            vty_out (vty, " metric-type %d", ROUTEMAP_METRIC(ei));
+        vty_out (vty, "%s", VTY_NEWLINE);
+      }
+
+  return 0;
+}
+
 /* OSPF configuration write function. */
 static int
 ospf_config_write (struct vty *vty)
@@ -7413,6 +7439,9 @@ ospf_config_write (struct vty *vty)
 #ifdef HAVE_OPAQUE_LSA
       ospf_opaque_config_write_router (vty, ospf);
 #endif /* HAVE_OPAQUE_LSA */
+
+      /* Fibbing configuration */
+      config_write_fibbing(vty, ospf);
     }
 
   return write;
