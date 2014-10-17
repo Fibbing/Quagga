@@ -564,6 +564,7 @@ extern void ospf_area_del_if (struct ospf_area *, struct ospf_interface *);
 
 extern int ospf_fibbing_add(struct ospf *, struct prefix_ipv4, struct in_addr,
                             int, int);
+extern int ospf_fibbing_del(struct ospf *, struct prefix_ipv4);
 
 extern void ospf_route_map_init (void);
 extern void ospf_snmp_init (void);

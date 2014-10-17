@@ -1689,3 +1689,18 @@ ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via, in
 
     return 1;
 }
+
+int
+ospf_fibbing_del(struct ospf *ospf, struct prefix_ipv4 p)
+{
+    if (!ospf_external_info_lookup (ZEBRA_ROUTE_FIBBING, &p))
+      {
+        zlog_debug ("Could not find a matching external info node");
+        return 0;
+      }
+
+    ospf_external_info_delete (ZEBRA_ROUTE_FIBBING, p);
+    ospf_external_lsa_flush (ospf, ZEBRA_ROUTE_FIBBING, &p, _FIBBING_RT_IFINDEX);
+
+    return 1;
+}
