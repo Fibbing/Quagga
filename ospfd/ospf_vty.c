@@ -6652,6 +6652,66 @@ DEFUN (show_ip_ospf_route,
   return CMD_SUCCESS;
 }
 
+#define FIBBING_TARGET_CMD "fibbing A.B.C.D/M"
+#define FIBBING_TARGET_STR "Fibbing entry\n"\
+  "OSPF STUB-Network\n"
+
+#define FIBBING_ADD_CMD FIBBING_TARGET_CMD\
+  " via A.B.C.D {cost <0-16777214>|metric-type (1|2)}"
+
+#define FIBBING_ADD_STR FIBBING_TARGET_STR\
+  "via\n"\
+  "OSPF Next-hop\n"\
+  "Cost for redistributed routes\n"\
+  "OSPF cost metric\n"\
+  "OSPF exterior metric type for redistributed routes\n"\
+  "Set OSPF External Type 1 metrics\n"\
+  "Set OSPF External Type 2 metrics\n"
+
+
+DEFUN (ospf_fibbing,
+       ospf_fibbing_cmd,
+       FIBBING_ADD_CMD,
+       FIBBING_ADD_STR)
+{
+  struct ospf* ospf = vty->index ? vty->index : ospf_get ();
+  struct prefix_ipv4 p;
+  struct in_addr via;
+  int cost = -1;
+  int mtype = -1;
+
+  if (argc < 4)
+    return CMD_WARNING; /* If this ever happens I'll eat my shoes */
+
+  VTY_GET_IPV4_PREFIX("network", p, argv[0]);
+  VTY_GET_IPV4_ADDRESS("via address", via, argv[1]);
+
+  /* Get cost if specified. */
+  if (argv[2] != NULL)
+    if (!str2metric (argv[2], &cost))
+      return CMD_WARNING;
+
+  /* Get metric type if specified. */
+  if (argv[3] != NULL)
+    if (!str2metric_type (argv[3], &mtype))
+      return CMD_WARNING;
+
+  if (!ospf_fibbing_add(ospf, p, via, cost, mtype))
+    {
+      vty_out(vty, "Couldn't add the fibbing entry!%s", VTY_NEWLINE);
+      return CMD_WARNING;
+    }
+
+  return CMD_SUCCESS;
+}
+
+ALIAS (ospf_fibbing,
+       fibbing_cmd,
+       "ip ospf "FIBBING_ADD_CMD,
+       IP_STR
+       OSPF_STR
+       FIBBING_ADD_STR)
+
 
 const char *ospf_abr_type_str[] = 
 {
@@ -7722,6 +7782,9 @@ ospf_vty_init (void)
   install_element (OSPF_NODE, &no_ospf_neighbor_priority_cmd);
   install_element (OSPF_NODE, &no_ospf_neighbor_poll_interval_cmd);
 
+  /* fibbing commands */
+  install_element (OSPF_NODE, &ospf_fibbing_cmd);
+  install_element (CONFIG_NODE, &fibbing_cmd);
   /* Init interface related vty commands. */
   ospf_vty_if_init ();
 
