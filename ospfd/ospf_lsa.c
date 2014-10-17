@@ -1643,12 +1643,14 @@ ospf_external_lsa_body_set (struct stream *s, struct external_info *ei,
   /* Put 0 metric. TOS metric is not supported. */
   stream_put_ospf_metric (s, mvalue);
   
-  /* Get forwarding address to nexthop if on the Connection List, else 0. */
-  fwd_addr = ospf_external_lsa_nexthop_get (ospf, ei->nexthop);
+  /* Get forwarding address to nexthop if on the Connection List or a Fibbing route,
+   * else 0. */
+  fwd_addr = (ei->type == ZEBRA_ROUTE_FIBBING) ?
+    ei->nexthop : ospf_external_lsa_nexthop_get (ospf, ei->nexthop);
 
   /* Put forwarding address. */
   stream_put_ipv4 (s, fwd_addr.s_addr);
-  
+
   /* Put route tag -- This value should be introduced from configuration. */
   stream_putl (s, 0);
 }

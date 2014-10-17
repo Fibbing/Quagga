@@ -1793,3 +1793,32 @@ ospf_master_init ()
   om->master = thread_master_create ();
   om->start_time = quagga_time (NULL);
 }
+
+/* Hard-code this route as using eth0 (== ifindex 1) as anyway we won't forward anything */
+#define _FIBBING_RT_IFINDEX 1
+
+int
+ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via, int cost, int mtype)
+{
+    struct external_info *ei;
+    struct ospf_lsa *lsa;
+
+    ei = ospf_external_info_add (ZEBRA_ROUTE_FIBBING, p, _FIBBING_RT_IFINDEX, via);
+    if (!ei)
+      {
+        zlog_debug ("Failed to add the external route entry for the fibbing rule!");
+        return 0;
+      }
+    ROUTEMAP_METRIC (ei) = cost;
+    ROUTEMAP_METRIC_TYPE (ei) = mtype;
+
+    /* Generate, install, and flood a new T-5 LSA */
+    lsa = ospf_external_lsa_originate (ospf, ei);
+    if (!lsa)
+      {
+        zlog_debug ("Failed to originate the fibbing LSA!");
+        return 0;
+      }
+
+    return 1;
+}
