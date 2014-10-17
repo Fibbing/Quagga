@@ -6857,12 +6857,40 @@ DEFUN (ospf_fibbing,
   return CMD_SUCCESS;
 }
 
+DEFUN (no_ospf_fibbing,
+       no_ospf_fibbing_cmd,
+       "no " FIBBING_TARGET_CMD,
+       NO_STR
+       FIBBING_TARGET_STR)
+{
+  struct ospf* ospf = vty->index ? vty->index : ospf_get ();
+  struct prefix_ipv4 p;
+
+  if (argc < 1)
+    return CMD_WARNING; /* FLY-TOX: Exterminates flies, ants, ... and BUGS */
+
+  VTY_GET_IPV4_PREFIX("network", p, argv[0]);
+
+  if (!ospf_fibbing_del(ospf, p))
+      vty_out(vty, "No fibbing entry was removed%s", VTY_NEWLINE);
+
+  return CMD_SUCCESS;
+}
+
 ALIAS (ospf_fibbing,
        fibbing_cmd,
        "ip ospf "FIBBING_ADD_CMD,
        IP_STR
        OSPF_STR
        FIBBING_ADD_STR)
+
+ALIAS (no_ospf_fibbing,
+       no_fibbing_cmd,
+       "no ip ospf " FIBBING_TARGET_CMD,
+       NO_STR
+       IP_STR
+       OSPF_STR
+       FIBBING_TARGET_STR)
 
 
 const char *ospf_abr_type_str[] =
@@ -7990,6 +8018,9 @@ ospf_vty_init (void)
   /* fibbing commands */
   install_element (OSPF_NODE, &ospf_fibbing_cmd);
   install_element (CONFIG_NODE, &fibbing_cmd);
+  install_element (OSPF_NODE, &no_ospf_fibbing_cmd);
+  install_element (CONFIG_NODE, &no_fibbing_cmd);
+
   /* Init interface related vty commands. */
   ospf_vty_if_init ();
 
