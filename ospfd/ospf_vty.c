@@ -7477,7 +7477,8 @@ static int
 config_write_fibbing (struct vty *vty, struct ospf *ospf)
 {
   struct route_node *rn;
-
+  if (!ospf || !EXTERNAL_INFO (ZEBRA_ROUTE_FIBBING))
+      return 0;
   /* `fibbing' print. */
   for (rn = route_top (EXTERNAL_INFO (ZEBRA_ROUTE_FIBBING));
        rn; rn = route_next (rn))
