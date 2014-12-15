@@ -143,7 +143,9 @@ unsigned long term_debug_ospf_lsa = 0;
 unsigned long term_debug_ospf_zebra = 0;
 unsigned long term_debug_ospf_nssa = 0;
 
-
+/* Export LSDB changes variables */
+char *ospf_log_lsdb_path = NULL;
+FILE *ospf_log_lsdb_file = NULL;
 
 const char *
 ospf_redist_string(u_int route_type)
@@ -751,6 +753,198 @@ ospf_packet_dump (struct stream *s)
   stream_set_getp (s, gp);
 }
 
+/* Functions to log all changes to the LSDB relevant for fibbing */
+
+static void
+ospf_log_lsdb_write (const char *format, ...)
+{
+    va_list argptr;
+    va_start (argptr, format);
+    vfprintf (ospf_log_lsdb_file, format, argptr); 
+}
+
+static const char *ospf_log_lsdb_fields[] = {
+    "ADD|",
+    "REM|",
+    "rid",
+    "lsa_type",
+    "link_id",
+    "link_mask",
+    "link_data",
+    "link_type",
+    "link_metric",
+    "link_metrictype",
+    "opaque_data",
+    "fwd_addr"
+};
+
+enum log_key {
+    LOG_LSA_ADD,
+    LOG_LSA_REM,
+    LOG_ROUTER,
+    LOG_LSATYPE,
+    LOG_LINKID,
+    LOG_LINKMASK,
+    LOG_LINKDATA,
+    LOG_LINKTYPE,
+    LOG_METRIC,
+    LOG_METRICTYPE,
+    LOG_OPAQUE,
+    LOG_FWDADDR
+};
+
+#define LOG_LSDB_GET_KEY(key) ospf_log_lsdb_fields[key]
+#define LOG_LSDB_WRITE_KEY(key) (ospf_log_lsdb_write ( LOG_LSDB_GET_KEY (key)))
+#define LOG_LSDB_FIELD_INTRA_SEP ":"
+#define LOG_LSDB_FIELD_INTER_SEP ";"
+
+static void
+ospf_log_lsdb_write_field (enum log_key key, const char *val)
+{
+    ospf_log_lsdb_write (
+            LOG_LSDB_FIELD_INTER_SEP "%s" LOG_LSDB_FIELD_INTRA_SEP "%s",
+            LOG_LSDB_GET_KEY (key), val);
+
+}
+
+static void
+ospf_log_lsdb_write_field_unsigned (enum log_key key, uint32_t val)
+{
+    ospf_log_lsdb_write (
+            LOG_LSDB_FIELD_INTER_SEP "%s" LOG_LSDB_FIELD_INTRA_SEP "%u",
+            LOG_LSDB_GET_KEY (key), val);
+}
+
+static void
+ospf_log_lsdb_write_lsa_header (struct lsa_header *hdr)
+{
+   ospf_log_lsdb_write_field (LOG_ROUTER, inet_ntoa (hdr->adv_router));
+   ospf_log_lsdb_write_field_unsigned (LOG_LSATYPE, hdr->type);
+   ospf_log_lsdb_write_field (LOG_LINKID, inet_ntoa (hdr->id));
+}
+
+#define LOG_LSDB_GROUP_SEP " "
+
+static void
+ospf_log_lsdb_write_router_lsa (struct router_lsa *lsa)
+{
+    int count = (ntohs (lsa->header.length) - OSPF_HEADER_SIZE - 4) / 12;
+    int i;
+    for (i = 0; i < count; ++i) {
+        ospf_log_lsdb_write (LOG_LSDB_GROUP_SEP);
+        ospf_log_lsdb_write_field (LOG_LINKID, inet_ntoa (lsa->link[i].link_id));
+        ospf_log_lsdb_write_field_unsigned (LOG_LINKTYPE, lsa->link[i].type);
+        ospf_log_lsdb_write_field (LOG_LINKDATA,
+                inet_ntoa (lsa->link[i].link_data));
+        ospf_log_lsdb_write_field_unsigned (LOG_METRIC,
+                ntohs (lsa->link[i].metric));
+    }
+}
+
+static void
+ospf_log_lsdb_write_net_lsa (struct network_lsa *lsa)
+{
+    ospf_log_lsdb_write_field (LOG_LINKMASK, inet_ntoa (lsa->mask));
+    int count = (ntohs (lsa->header.length) - OSPF_LSA_HEADER_SIZE - 4) / 4;
+    int i;
+    for (i = 0; i < count; ++i) {
+        ospf_log_lsdb_write (LOG_LSDB_GROUP_SEP);
+        ospf_log_lsdb_write_field (LOG_ROUTER, inet_ntoa (lsa->routers[i]));
+    }
+}
+
+static void
+ospf_log_lsdb_write_asexternal_lsa (struct as_external_lsa *lsa)
+{
+    ospf_log_lsdb_write_field (LOG_LINKMASK, inet_ntoa (lsa->mask));
+    int count = (ntohs (lsa->header.length) - OSPF_LSA_HEADER_SIZE - 4) / 12;
+    int i;
+    for (i = 0; i < count; ++i) {
+        ospf_log_lsdb_write (LOG_LSDB_GROUP_SEP);
+        ospf_log_lsdb_write_field (LOG_FWDADDR, inet_ntoa (lsa->e[i].fwd_addr));
+        ospf_log_lsdb_write_field (LOG_METRICTYPE,
+                IS_EXTERNAL_METRIC (lsa->e[i].tos) ? "E" : "I");
+        ospf_log_lsdb_write_field_unsigned (LOG_METRIC,
+                GET_METRIC (lsa->e[i].metric));
+    }
+}
+
+static void
+ospf_log_lsdb_write_unknown_lsa (struct lsa_header *hdr)
+{
+    static const char *hex = "0123456789abcdef";
+    u_char *bytes = (u_char *)hdr;
+    /* 0x + 2letters/byte + '\0' */
+    int len = 2 + hdr->length * 2 + 1;
+    char buf[len];
+    int i;
+    char *p = buf;
+    *p++ = '0';
+    *p++ = 'x';
+    for (i = 0; i < hdr->length; ++i) {
+        *p++ = hex[(*bytes >> 4) & 0xf];
+        *p++ = hex[(*bytes++) & 0xf];
+    }
+    *p = '\0';
+    ospf_log_lsdb_write_field (LOG_OPAQUE, buf);
+}
+
+#define LOG_LSDB_LSA_SEP "\n"
+
+static void
+ospf_log_lsdb_write_lsa (enum log_key key, struct ospf_lsa *lsa)
+{
+    LOG_LSDB_WRITE_KEY (key);
+    ospf_log_lsdb_write_lsa_header (lsa->data);
+    switch (lsa->data->type) {
+        case OSPF_ROUTER_LSA:
+            ospf_log_lsdb_write_router_lsa ((struct router_lsa *)lsa->data);
+            break;
+        case OSPF_NETWORK_LSA:
+            ospf_log_lsdb_write_net_lsa ((struct network_lsa *)lsa->data);
+            break;
+        case OSPF_AS_EXTERNAL_LSA:
+            ospf_log_lsdb_write_asexternal_lsa
+                ((struct as_external_lsa *)lsa->data);
+            break;
+        default:
+            ospf_log_lsdb_write_unknown_lsa (lsa->data);
+            break;
+    }
+    ospf_log_lsdb_write (LOG_LSDB_LSA_SEP);
+}
+
+int
+ospf_log_lsdb_add_lsa_hook (struct ospf_lsa *lsa)
+{
+    ospf_log_lsdb_write_lsa (LOG_LSA_ADD, lsa);
+    return 0;
+}
+
+int
+ospf_log_lsdb_remove_lsa_hook (struct ospf_lsa *lsa)
+{
+    ospf_log_lsdb_write_lsa (LOG_LSA_REM, lsa);
+    return 0;
+}
+
+int
+ospf_log_lsdb_init ()
+{
+    if (ospf_log_lsdb_path
+            && ! (ospf_log_lsdb_file = fopen (ospf_log_lsdb_path, "w"))) {
+        perror ("Failed to open the LSDB log file");
+        return -1;
+    }
+    return 0;
+}
+
+void
+ospf_log_lsdb_terminate ()
+{
+    if (ospf_log_lsdb_file)
+        fclose (ospf_log_lsdb_file);
+}
 
 /*
    [no] debug ospf packet (hello|dd|ls-request|ls-update|ls-ack|all)

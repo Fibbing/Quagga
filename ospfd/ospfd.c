@@ -573,6 +573,7 @@ ospf_finish_final (struct ospf *ospf)
   route_table_finish (ospf->distance_table);
 
   ospf_delete (ospf);
+  ospf_log_lsdb_terminate ();
 
   XFREE (MTYPE_OSPF_TOP, ospf);
 }

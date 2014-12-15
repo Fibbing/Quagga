@@ -91,6 +91,7 @@ struct option longopts[] =
   { "group",       required_argument, NULL, 'g'},
   { "apiserver",   no_argument,       NULL, 'a'},
   { "version",     no_argument,       NULL, 'v'},
+  { "log_lsdb",   required_argument, NULL, 'l'},
   { 0 }
 };
 
@@ -127,6 +128,7 @@ Daemon which manages OSPF.\n\n\
 -a. --apiserver    Enable OSPF apiserver\n\
 -v, --version      Print program version\n\
 -C, --dryrun       Check configuration for validity and exit\n\
+-l, --log_lsdb     Log all changes to the LSDB in file name\n\
 -h, --help         Display this help and exit\n\
 \n\
 Report bugs to %s\n", progname, ZEBRA_BUG_ADDRESS);
@@ -258,6 +260,10 @@ main (int argc, char **argv)
 	case 'C':
 	  dryrun = 1;
 	  break;
+    case 'l':
+      ospf_log_lsdb_path = optarg;
+      ospf_log_lsdb_init ();
+      break;
 	case 'h':
 	  usage (progname, 0);
 	  break;

@@ -137,6 +137,13 @@ extern void ospf_ip_header_dump (struct ip *);
 extern void ospf_packet_dump (struct stream *);
 extern void ospf_lsa_header_dump (struct lsa_header *);
 extern void debug_init (void);
+extern int ospf_log_lsdb_add_lsa_hook (struct ospf_lsa *);
+extern int ospf_log_lsdb_remove_lsa_hook (struct ospf_lsa *);
+extern int ospf_log_lsdb_init (void);
+extern void ospf_log_lsdb_terminate (void);
+
+/* Dump LSDB changes output */
+extern char *ospf_log_lsdb_path;
 
 /* Appropriate buffer size to use with ospf_timer_dump and ospf_timeval_dump: */
 #define OSPF_TIME_DUMP_SIZE	16
