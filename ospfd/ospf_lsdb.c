@@ -41,6 +41,11 @@ ospf_lsdb_new ()
   new = XCALLOC (MTYPE_OSPF_LSDB, sizeof (struct ospf_lsdb));
   ospf_lsdb_init (new);
 
+  if (ospf_log_lsdb_path) {
+    new->del_lsa_hook = ospf_log_lsdb_remove_lsa_hook;
+    new->new_lsa_hook = ospf_log_lsdb_add_lsa_hook;
+  }
+
   return new;
 }
 
@@ -51,11 +56,6 @@ ospf_lsdb_init (struct ospf_lsdb *lsdb)
   
   for (i = OSPF_MIN_LSA; i < OSPF_MAX_LSA; i++)
     lsdb->type[i].db = route_table_init ();
-
-  if (ospf_log_lsdb_path) {
-    lsdb->del_lsa_hook = ospf_log_lsdb_remove_lsa_hook;
-    lsdb->new_lsa_hook = ospf_log_lsdb_add_lsa_hook;
-  }
 }
 
 void
