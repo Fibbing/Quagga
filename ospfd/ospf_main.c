@@ -90,7 +90,7 @@ struct option longopts[] =
   { "group",       required_argument, NULL, 'g'},
   { "apiserver",   no_argument,       NULL, 'a'},
   { "version",     no_argument,       NULL, 'v'},
-  { "log_lsdb",   required_argument, NULL, 'l'},
+  { "log_lsdb",    required_argument, NULL, 'l'},
   { 0 }
 };
 

@@ -42,8 +42,8 @@ ospf_lsdb_new ()
   ospf_lsdb_init (new);
 
   if (ospf_log_lsdb_path) {
-    new->del_lsa_hook = ospf_log_lsdb_remove_lsa_hook;
-    new->new_lsa_hook = ospf_log_lsdb_add_lsa_hook;
+    new->rem_lsa_hook = ospf_log_lsdb_remove_lsa_hook;
+    new->add_lsa_hook = ospf_log_lsdb_add_lsa_hook;
   }
 
   return new;
@@ -107,6 +107,8 @@ ospf_lsdb_delete_entry (struct ospf_lsdb *lsdb, struct route_node *rn)
   lsdb->total--;
   rn->info = NULL;
   route_unlock_node (rn);
+  if (lsdb->rem_lsa_hook != NULL)
+    (* lsdb->rem_lsa_hook)(lsa);
 #ifdef MONITOR_LSDB_CHANGE
   if (lsdb->del_lsa_hook != NULL)
     (* lsdb->del_lsa_hook)(lsa);
@@ -142,7 +144,8 @@ ospf_lsdb_add (struct ospf_lsdb *lsdb, struct ospf_lsa *lsa)
     lsdb->type[lsa->data->type].count_self++;
   lsdb->type[lsa->data->type].count++;
   lsdb->total++;
-
+  if (lsdb->add_lsa_hook != NULL)
+    (* lsdb->add_lsa_hook)(lsa);
 #ifdef MONITOR_LSDB_CHANGE
   if (lsdb->new_lsa_hook != NULL)
     (* lsdb->new_lsa_hook)(lsa);

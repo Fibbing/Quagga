@@ -916,6 +916,7 @@ ospf_log_lsdb_write_lsa (enum log_key key, struct ospf_lsa *lsa)
             break;
     }
     ospf_log_lsdb_write (LOG_LSDB_LSA_SEP);
+    fflush(ospf_log_lsdb_file);
 }
 
 int
