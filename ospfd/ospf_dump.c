@@ -765,9 +765,11 @@ ospf_log_lsdb_write (const char *format, ...)
     vfprintf (ospf_log_lsdb_file, format, argptr); 
 }
 
+#define LOG_LSDB_ACTION_SEP "|"
+
 static const char *ospf_log_lsdb_fields[] = {
-    "ADD|",
-    "REM|",
+    "ADD" LOG_LSDB_ACTION_SEP,
+    "REM" LOG_LSDB_ACTION_SEP,
     "rid",
     "lsa_type",
     "link_id",
