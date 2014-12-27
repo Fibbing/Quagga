@@ -830,9 +830,8 @@ ospf_log_lsdb_write_lsa_header (struct lsa_header *hdr)
 static void
 ospf_log_lsdb_write_router_lsa (struct router_lsa *lsa)
 {
-    int count = (ntohs (lsa->header.length) - OSPF_HEADER_SIZE - 4) / 12;
     int i;
-    for (i = 0; i < count; ++i) {
+    for (i = 0; i < ntohs (lsa->links); ++i) {
         ospf_log_lsdb_write (LOG_LSDB_GROUP_SEP);
         ospf_log_lsdb_write_field (LOG_LINKID, inet_ntoa (lsa->link[i].link_id));
         ospf_log_lsdb_write_field_unsigned (LOG_LINKTYPE, lsa->link[i].type);
@@ -871,26 +870,6 @@ ospf_log_lsdb_write_asexternal_lsa (struct as_external_lsa *lsa)
     }
 }
 
-static void
-ospf_log_lsdb_write_unknown_lsa (struct lsa_header *hdr)
-{
-    static const char *hex = "0123456789abcdef";
-    u_char *bytes = (u_char *)hdr;
-    /* 0x + 2letters/byte + '\0' */
-    int len = 2 + hdr->length * 2 + 1;
-    char buf[len];
-    int i;
-    char *p = buf;
-    *p++ = '0';
-    *p++ = 'x';
-    for (i = 0; i < hdr->length; ++i) {
-        *p++ = hex[(*bytes >> 4) & 0xf];
-        *p++ = hex[(*bytes++) & 0xf];
-    }
-    *p = '\0';
-    ospf_log_lsdb_write_field (LOG_OPAQUE, buf);
-}
-
 #define LOG_LSDB_LSA_SEP "\n"
 
 static void
@@ -910,7 +889,7 @@ ospf_log_lsdb_write_lsa (enum log_key key, struct ospf_lsa *lsa)
                 ((struct as_external_lsa *)lsa->data);
             break;
         default:
-            ospf_log_lsdb_write_unknown_lsa (lsa->data);
+            /* Ignore other LSA types for the moment */
             break;
     }
     ospf_log_lsdb_write (LOG_LSDB_LSA_SEP);
