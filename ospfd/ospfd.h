@@ -8,7 +8,7 @@
  * under the terms of the GNU General Public License as published by the
  * Free Software Foundation; either version 2, or (at your option) any
  * later version.
- * 
+ *
  * GNU Zebra is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
@@ -53,7 +53,7 @@
 #define OSPF_AUTH_CRYPTOGRAPHIC             2
 /* For Interface authentication setting default */
 #define OSPF_AUTH_NOTSET                   -1
-/* For the consumption and sanity of the command handler */ 
+/* For the consumption and sanity of the command handler */
 /* DO NIOT REMOVE!!! Need to detect whether a value has
    been given or not in VLink command handlers */
 #define OSPF_AUTH_CMD_NOTSEEN              -2
@@ -97,7 +97,7 @@ struct ospf_master
 
   /* Various OSPF global configuration. */
   u_char options;
-#define OSPF_MASTER_SHUTDOWN (1 << 0) /* deferred-shutdown */  
+#define OSPF_MASTER_SHUTDOWN (1 << 0) /* deferred-shutdown */
 };
 
 /* OSPF instance structure. */
@@ -155,7 +155,7 @@ struct ospf
   unsigned int spf_holdtime;		/* SPF hold time. */
   unsigned int spf_max_holdtime;	/* SPF maximum-holdtime */
   unsigned int spf_hold_multiplier;	/* Adaptive multiplier for hold time */
-  
+
   int default_originate;		/* Default information originate. */
 #define DEFAULT_ORIGINATE_NONE		0
 #define DEFAULT_ORIGINATE_ZEBRA		1
@@ -172,7 +172,7 @@ struct ospf
 
   /* LSDB of AS-external-LSAs. */
   struct ospf_lsdb *lsdb;
-  
+
   /* Flags. */
   int external_origin;			/* AS-external-LSA origin flag. */
   int ase_calc;				/* ASE calculation flag. */
@@ -190,7 +190,7 @@ struct ospf
 
   struct route_table *new_external_route;   /* New External Route. */
   struct route_table *old_external_route;   /* Old External Route. */
-  
+
   struct route_table *external_lsas;    /* Database of external LSAs,
 					   prefix is LSA's adv. network*/
 
@@ -224,9 +224,9 @@ struct ospf
   unsigned int maxsndbuflen;
   struct stream *ibuf;
   struct list *oi_write_q;
-  
+
   /* Distribute lists out of other route sources. */
-  struct 
+  struct
   {
     char *name;
     struct access_list *list;
@@ -235,7 +235,7 @@ struct ospf
 #define DISTRIBUTE_LIST(O,T)    (O)->dlist[T].list
 
   /* Redistribute metric info. */
-  struct 
+  struct
   {
     int type;                   /* External metric type (E1 or E2).  */
     int value;		        /* Value for static metric (24-bit).
@@ -250,7 +250,7 @@ struct ospf
   } route_map [ZEBRA_ROUTE_MAX + 1]; /* +1 is for default-information */
 #define ROUTEMAP_NAME(O,T)   (O)->route_map[T].name
 #define ROUTEMAP(O,T)        (O)->route_map[T].map
-  
+
   int default_metric;		/* Default metric for redistribute. */
 
 #define OSPF_LSA_REFRESHER_GRANULARITY 10
@@ -261,12 +261,12 @@ struct ospf
     u_int16_t index;
     struct list *qs[OSPF_LSA_REFRESHER_SLOTS];
   } lsa_refresh_queue;
-  
+
   struct thread *t_lsa_refresher;
   time_t lsa_refresher_started;
 #define OSPF_LSA_REFRESH_INTERVAL_DEFAULT 10
   u_int16_t lsa_refresh_interval;
-  
+
   /* Distance parameter. */
   u_char distance_all;
   u_char distance_intra;
@@ -278,7 +278,7 @@ struct ospf
 
   /* Statistics for LSA used for new instantiation. */
   u_int32_t rx_lsa_count;
- 
+
   struct route_table *distance_table;
 };
 
@@ -316,7 +316,7 @@ struct ospf_area
   int shortcut_capability;              /* Other ABRs agree on S-bit */
   u_int32_t default_cost;               /* StubDefaultCost. */
   int auth_type;                        /* Authentication type. */
-  
+
 
   u_char NSSATranslatorRole;          /* NSSA configured role */
 #define OSPF_NSSA_ROLE_NEVER     0
@@ -326,18 +326,18 @@ struct ospf_area
 #define OSPF_NSSA_TRANSLATE_DISABLED 0
 #define OSPF_NSSA_TRANSLATE_ENABLED  1
   int NSSATranslatorStabilityInterval;
-  
+
   u_char transit;			/* TransitCapability. */
 #define OSPF_TRANSIT_FALSE      0
 #define OSPF_TRANSIT_TRUE       1
   struct route_table *ranges;		/* Configured Area Ranges. */
-  
+
   /* RFC3137 stub router state flags for area */
   u_char stub_router_state;
 #define OSPF_AREA_ADMIN_STUB_ROUTED	(1 << 0) /* admin stub-router set */
 #define OSPF_AREA_IS_STUB_ROUTED	(1 << 1) /* stub-router active */
 #define OSPF_AREA_WAS_START_STUB_ROUTED	(1 << 2) /* startup SR was done */
-  
+
   /* Area related LSDBs[Type1-4]. */
   struct ospf_lsdb *lsdb;
 
@@ -348,7 +348,7 @@ struct ospf_area
 #endif /* HAVE_OPAQUE_LSA */
 
   /* Area announce list. */
-  struct 
+  struct
   {
     char *name;
     struct access_list *list;
@@ -357,7 +357,7 @@ struct ospf_area
 #define EXPORT_LIST(A)  (A)->_export.list
 
   /* Area acceptance list. */
-  struct 
+  struct
   {
     char *name;
     struct access_list *list;
@@ -366,7 +366,7 @@ struct ospf_area
 #define IMPORT_LIST(A)  (A)->import.list
 
   /* Type 3 LSA Area prefix-list. */
-  struct 
+  struct
   {
     char *name;
     struct prefix_list *list;
@@ -563,7 +563,7 @@ extern void ospf_area_add_if (struct ospf_area *, struct ospf_interface *);
 extern void ospf_area_del_if (struct ospf_area *, struct ospf_interface *);
 
 extern int ospf_fibbing_add(struct ospf *, struct prefix_ipv4, struct in_addr,
-                            int, int);
+                            int, int, int);
 extern int ospf_fibbing_del(struct ospf *, struct prefix_ipv4);
 
 extern void ospf_route_map_init (void);

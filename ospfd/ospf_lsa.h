@@ -100,7 +100,7 @@ struct ospf_lsa
   #define LSA_SPF_NOT_EXPLORED	-1
   #define LSA_SPF_IN_SPFTREE	-2
   /* If stat >= 0, stat is LSA position in candidates heap. */
-  
+
   /* References to this LSA in neighbor retransmission lists*/
   int retransmit_counter;
 
@@ -115,7 +115,7 @@ struct ospf_lsa
 
   /* Refreshement List or Queue */
   int refresh_list;
-  
+
   /* For Type-9 Opaque-LSAs */
   struct ospf_interface *oi;
 };
@@ -292,7 +292,7 @@ extern int ospf_default_originate_timer (struct thread *);
 extern struct ospf_lsa *ospf_lsa_lookup (struct ospf_area *, u_int32_t,
 				  struct in_addr, struct in_addr);
 extern struct ospf_lsa *ospf_lsa_lookup_by_id (struct ospf_area *,
-                                        u_int32_t, 
+                                        u_int32_t,
                                         struct in_addr);
 extern struct ospf_lsa *ospf_lsa_lookup_by_header (struct ospf_area *,
 					    struct lsa_header *);
@@ -311,7 +311,7 @@ extern u_int32_t get_metric (u_char *);
 
 extern int ospf_lsa_maxage_walker (struct thread *);
 extern struct ospf_lsa *ospf_lsa_refresh (struct ospf *, struct ospf_lsa *);
- 
+
 extern void ospf_external_lsa_refresh_default (struct ospf *);
 
 extern void ospf_external_lsa_refresh_type (struct ospf *, u_char, int);

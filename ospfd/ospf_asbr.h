@@ -50,6 +50,8 @@ struct external_info
   struct route_map_set_values route_map_set;
 #define ROUTEMAP_METRIC(E)      (E)->route_map_set.metric
 #define ROUTEMAP_METRIC_TYPE(E) (E)->route_map_set.metric_type
+
+  uint32_t ttl;
 };
 
 #define OSPF_ASBR_CHECK_DELAY 30
@@ -59,14 +61,14 @@ extern struct external_info *ospf_external_info_new (u_char);
 extern void ospf_reset_route_map_set_values (struct route_map_set_values *);
 extern int ospf_route_map_set_compare (struct route_map_set_values *,
 				struct route_map_set_values *);
-extern struct external_info *ospf_external_info_add (u_char, 
+extern struct external_info *ospf_external_info_add (u_char,
                                               struct prefix_ipv4,
-					      unsigned int, 
+					      unsigned int,
 					      struct in_addr);
 extern void ospf_external_info_delete (u_char, struct prefix_ipv4);
-extern struct external_info *ospf_external_info_lookup (u_char, 
+extern struct external_info *ospf_external_info_lookup (u_char,
                                                  struct prefix_ipv4 *);
-extern struct ospf_route *ospf_external_route_lookup (struct ospf *, 
+extern struct ospf_route *ospf_external_route_lookup (struct ospf *,
                                                struct prefix_ipv4 *);
 extern void ospf_asbr_status_update (struct ospf *, u_char);
 
