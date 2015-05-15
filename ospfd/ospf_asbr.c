@@ -106,6 +106,7 @@ ospf_external_info_new (u_char type)
   new = (struct external_info *)
     XCALLOC (MTYPE_OSPF_EXTERNAL_INFO, sizeof (struct external_info));
   new->type = type;
+  new->ttl = OSPF_LSA_MAXAGE;
 
   ospf_reset_route_map_set_values (&new->route_map_set);
   return new;

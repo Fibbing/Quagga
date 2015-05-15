@@ -69,9 +69,9 @@ static void ospf_remove_vls_through_area (struct ospf *, struct ospf_area *);
 static void ospf_network_free (struct ospf *, struct ospf_network *);
 static void ospf_area_free (struct ospf_area *);
 static void ospf_network_run (struct prefix *, struct ospf_area *);
-static void ospf_network_run_interface (struct ospf *, struct interface *, 
+static void ospf_network_run_interface (struct ospf *, struct interface *,
                                         struct prefix *, struct ospf_area *);
-static void ospf_network_run_subnet (struct ospf *, struct connected *, 
+static void ospf_network_run_subnet (struct ospf *, struct connected *,
                                      struct prefix *, struct ospf_area *);
 static int ospf_network_match_iface (const struct connected *,
 				     const struct prefix *);
@@ -107,7 +107,7 @@ ospf_router_id_update (struct ospf *ospf)
     router_id = router_id_zebra;
 
   ospf->router_id = router_id;
-  
+
   if (IS_DEBUG_OSPF_EVENT)
     zlog_debug ("Router-ID[NEW:%s]: Update", inet_ntoa (ospf->router_id));
 
@@ -141,7 +141,7 @@ ospf_router_id_update (struct ospf *ospf)
 
       /* update router-lsa's for each area */
       ospf_router_lsa_update (ospf);
-      
+
       /* update ospf_interface's */
       for (ALL_LIST_ELEMENTS_RO (om->iflist, node, ifp))
         ospf_if_update (ospf, ifp);
@@ -183,11 +183,11 @@ ospf_new (void)
   new->default_originate = DEFAULT_ORIGINATE_NONE;
 
   new->passive_interface_default = OSPF_IF_ACTIVE;
-  
+
   new->new_external_route = route_table_init ();
   new->old_external_route = route_table_init ();
   new->external_lsas = route_table_init ();
-  
+
   new->stub_router_startup_time = OSPF_STUB_ROUTER_UNCONFIGURED;
   new->stub_router_shutdown_time = OSPF_STUB_ROUTER_UNCONFIGURED;
   new->stub_router_admin_set     = OSPF_STUB_ROUTER_ADMINISTRATIVE_UNSET;
@@ -245,7 +245,7 @@ ospf_new (void)
     }
   new->t_read = thread_add_read (master, ospf_read, new, new->fd);
   new->oi_write_q = list_new ();
-  
+
   return new;
 }
 
@@ -264,7 +264,7 @@ ospf_is_ready (struct ospf *ospf)
   /* OSPF must be on and Router-ID must be configured. */
   if (!ospf || ospf->router_id.s_addr == 0)
     return 0;
-  
+
   return 1;
 }
 
@@ -311,13 +311,13 @@ ospf_get ()
 static void
 ospf_deferred_shutdown_finish (struct ospf *ospf)
 {
-  ospf->stub_router_shutdown_time = OSPF_STUB_ROUTER_UNCONFIGURED;  
+  ospf->stub_router_shutdown_time = OSPF_STUB_ROUTER_UNCONFIGURED;
   OSPF_TIMER_OFF (ospf->t_deferred_shutdown);
-  
+
   ospf_finish_final (ospf);
-  
+
   /* *ospf is now invalid */
-  
+
   /* ospfd being shut-down? If so, was this the last ospf instance? */
   if (CHECK_FLAG (om->options, OSPF_MASTER_SHUTDOWN)
       && (listcount (om->ospf) == 0))
@@ -331,9 +331,9 @@ static int
 ospf_deferred_shutdown_timer (struct thread *t)
 {
   struct ospf *ospf = THREAD_ARG(t);
-  
+
   ospf_deferred_shutdown_finish (ospf);
-  
+
   return 0;
 }
 
@@ -346,18 +346,18 @@ ospf_deferred_shutdown_check (struct ospf *ospf)
   unsigned long timeout;
   struct listnode *ln;
   struct ospf_area *area;
-  
+
   /* deferred shutdown already running? */
   if (ospf->t_deferred_shutdown)
     return;
-  
+
   /* Should we try push out max-metric LSAs? */
   if (ospf->stub_router_shutdown_time != OSPF_STUB_ROUTER_UNCONFIGURED)
     {
       for (ALL_LIST_ELEMENTS_RO (ospf->areas, ln, area))
         {
           SET_FLAG (area->stub_router_state, OSPF_AREA_ADMIN_STUB_ROUTED);
-          
+
           if (!CHECK_FLAG (area->stub_router_state, OSPF_AREA_IS_STUB_ROUTED))
             ospf_router_lsa_update_area (area);
         }
@@ -369,7 +369,7 @@ ospf_deferred_shutdown_check (struct ospf *ospf)
       ospf_deferred_shutdown_finish (ospf);
       return;
     }
-  
+
   OSPF_TIMER_ON (ospf->t_deferred_shutdown, ospf_deferred_shutdown_timer,
                  timeout);
   return;
@@ -381,11 +381,11 @@ ospf_terminate (void)
 {
   struct ospf *ospf;
   struct listnode *node, *nnode;
-  
+
   /* shutdown already in progress */
   if (CHECK_FLAG (om->options, OSPF_MASTER_SHUTDOWN))
     return;
-  
+
   SET_FLAG (om->options, OSPF_MASTER_SHUTDOWN);
 
   /* exit immediately if OSPF not actually running */
@@ -406,7 +406,7 @@ ospf_finish (struct ospf *ospf)
 {
   /* let deferred shutdown decide */
   ospf_deferred_shutdown_check (ospf);
-      
+
   /* if ospf_deferred_shutdown returns, then ospf_finish_final is
    * deferred to expiry of G-S timer thread. Return back up, hopefully
    * to thread scheduler.
@@ -428,10 +428,10 @@ ospf_finish_final (struct ospf *ospf)
   int i;
 
   ospf_opaque_type11_lsa_term (ospf);
-  
+
   /* be nice if this worked, but it doesn't */
   /*ospf_flush_self_originated_lsas_now (ospf);*/
-  
+
   /* Unregister redistribution */
   for (i = 0; i < ZEBRA_ROUTE_MAX; i++)
     ospf_redistribute_unset (ospf, i);
@@ -439,10 +439,10 @@ ospf_finish_final (struct ospf *ospf)
 
   for (ALL_LIST_ELEMENTS (ospf->areas, node, nnode, area))
     ospf_remove_vls_through_area (ospf, area);
-  
+
   for (ALL_LIST_ELEMENTS (ospf->vlinks, node, nnode, vl_data))
     ospf_vl_delete (ospf, vl_data);
-  
+
   list_delete (ospf->vlinks);
 
   /* Reset interface. */
@@ -507,7 +507,7 @@ ospf_finish_final (struct ospf *ospf)
 
   close (ospf->fd);
   stream_free(ospf->ibuf);
-   
+
   LSDB_LOOP (OPAQUE_AS_LSDB (ospf), rn, lsa)
     ospf_discard_from_db (ospf, ospf->lsdb, lsa);
   LSDB_LOOP (EXTERNAL_LSDB (ospf), rn, lsa)
@@ -556,14 +556,14 @@ ospf_finish_final (struct ospf *ospf)
     }
 
   list_delete (ospf->areas);
-  
+
   for (i = ZEBRA_ROUTE_SYSTEM; i <= ZEBRA_ROUTE_MAX; i++)
     if (EXTERNAL_INFO (i) != NULL)
       for (rn = route_top (EXTERNAL_INFO (i)); rn; rn = route_next (rn))
 	{
 	  if (rn->info == NULL)
 	    continue;
-	  
+
 	  XFREE (MTYPE_OSPF_EXTERNAL_INFO, rn->info);
 	  rn->info = NULL;
 	  route_unlock_node (rn);
@@ -595,7 +595,7 @@ ospf_area_new (struct ospf *ospf, struct in_addr area_id)
   new->external_routing = OSPF_AREA_DEFAULT;
   new->default_cost = 1;
   new->auth_type = OSPF_AUTH_NULL;
-  
+
   /* New LSDB init. */
   new->lsdb = ospf_lsdb_new ();
 
@@ -640,7 +640,7 @@ ospf_area_free (struct ospf_area *area)
   ospf_lsdb_free (area->lsdb);
 
   ospf_lsa_unlock (&area->router_lsa_self);
-  
+
   route_table_finish (area->ranges);
   list_delete (area->oiflist);
 
@@ -653,7 +653,8 @@ ospf_area_free (struct ospf_area *area)
   /* Cancel timer. */
   OSPF_TIMER_OFF (area->t_stub_router);
   OSPF_TIMER_OFF (area->t_opaque_lsa_self);
-  
+#endif /* HAVE_OPAQUE_LSA */
+
   if (OSPF_IS_AREA_BACKBONE (area))
     area->ospf->backbone = NULL;
 
@@ -686,14 +687,14 @@ struct ospf_area *
 ospf_area_get (struct ospf *ospf, struct in_addr area_id, int format)
 {
   struct ospf_area *area;
-  
+
   area = ospf_area_lookup_by_area_id (ospf, area_id);
   if (!area)
     {
       area = ospf_area_new (ospf, area_id);
       area->format = format;
       listnode_add_sort (ospf->areas, area);
-      ospf_check_abr_status (ospf);  
+      ospf_check_abr_status (ospf);
       if (ospf->stub_router_admin_set == OSPF_STUB_ROUTER_ADMINISTRATIVE_SET)
         {
           SET_FLAG (area->stub_router_state, OSPF_AREA_ADMIN_STUB_ROUTED);
@@ -738,11 +739,11 @@ ospf_network_new (struct in_addr area_id, int format)
 
   new->area_id = area_id;
   new->format = format;
-  
+
   return new;
 }
 
-static void 
+static void
 add_ospf_interface (struct connected *co, struct ospf_area *area)
 {
   struct ospf_interface *oi;
@@ -774,7 +775,7 @@ add_ospf_interface (struct connected *co, struct ospf_area *area)
    * whenever r-id is configured instead.
    */
   if ((area->ospf->router_id.s_addr != 0)
-      && if_is_operative (co->ifp)) 
+      && if_is_operative (co->ifp))
     ospf_if_up (oi);
 }
 
@@ -839,7 +840,7 @@ ospf_network_set (struct ospf *ospf, struct prefix_ipv4 *p,
 
   /* Update connected redistribute. */
   update_redistributed(ospf, 1);
-  
+
   ospf_area_check_free (ospf, area_id);
 
   return 1;
@@ -872,15 +873,15 @@ ospf_network_unset (struct ospf *ospf, struct prefix_ipv4 *p,
     {
       if (oi->type == OSPF_IFTYPE_VIRTUALLINK)
         continue;
-      
+
       ospf_network_run_subnet (ospf, oi->connected, NULL, NULL);
     }
-  
+
   /* Update connected redistribute. */
   update_redistributed(ospf, 0);
-  
+
   ospf_area_check_free (ospf, area_id);
-  
+
   return 1;
 }
 
@@ -893,10 +894,10 @@ void
 ospf_interface_area_set (struct interface *ifp)
 {
   struct ospf *ospf = ospf_get();
-  
+
   ospf_if_update (ospf, ifp);
   /* if_update does a update_redistributed */
-  
+
   return;
 }
 
@@ -908,7 +909,7 @@ ospf_interface_area_unset (struct interface *ifp)
 
   if ((ospf = ospf_lookup ()) == NULL)
     return; /* Ospf not ready yet */
-  
+
   /* Find interfaces that may need to be removed. */
   for (rn_oi = route_top (IF_OIFS (ifp)); rn_oi; rn_oi = route_next (rn_oi))
     {
@@ -916,16 +917,16 @@ ospf_interface_area_unset (struct interface *ifp)
 
       if ( (oi = rn_oi->info) == NULL)
 	continue;
-      
+
       if (oi->type == OSPF_IFTYPE_VIRTUALLINK)
 	continue;
-      
+
       ospf_network_run_subnet (ospf, oi->connected, NULL, NULL);
     }
 
   /* Update connected redistribute. */
   update_redistributed (ospf, 0); /* interfaces possibly removed */
-  
+
   return;
 }
 
@@ -944,14 +945,14 @@ static void
 ospf_update_interface_area (struct connected *co, struct ospf_area *area)
 {
   struct ospf_interface *oi = ospf_if_table_lookup (co->ifp, co->address);
-  
+
   /* nothing to be done case */
   if (oi && oi->area == area)
     return;
-  
-  if (oi) 
+
+  if (oi)
     ospf_if_free (oi);
-  
+
   add_ospf_interface (co, area);
 }
 
@@ -973,23 +974,23 @@ ospf_network_run_subnet (struct ospf *ospf, struct connected *co,
   struct ospf_area *area = NULL;
   struct route_node *rn;
   int configed = 0;
-  
+
   if (CHECK_FLAG(co->flags, ZEBRA_IFA_SECONDARY))
     return;
-  
+
   if (co->address->family != AF_INET)
     return;
-  
+
   /* Try determine the appropriate area for this interface + address
-   * Start by checking interface config 
-   */   
+   * Start by checking interface config
+   */
   if (!(params = ospf_lookup_if_params (co->ifp, co->address->u.prefix4)))
     params = IF_DEF_PARAMS (co->ifp);
-  
+
   if (OSPF_IF_PARAM_CONFIGURED(params, if_area))
     area = (ospf_area_get (ospf, params->if_area,
                            OSPF_AREA_ID_FORMAT_ADDRESS));
-  
+
   /* If we've found an interface and/or addr specific area, then we're
    * done
    */
@@ -998,22 +999,22 @@ ospf_network_run_subnet (struct ospf *ospf, struct connected *co,
       ospf_update_interface_area (co, area);
       return;
     }
-  
+
   /* Otherwise, only remaining possibility is a matching network statement */
   if (p)
     {
       assert (given_area != NULL);
-      
+
       /* Which either was supplied as a parameter.. (e.g. cause a new
        * network/area was just added)..
        */
-      if (p->family == co->address->family 
+      if (p->family == co->address->family
           && ospf_network_match_iface (co, p))
         ospf_update_interface_area (co, given_area);
-      
+
       return;
     }
-  
+
   /* Else we have to search the existing network/area config to see
    * if any match..
    */
@@ -1026,7 +1027,7 @@ ospf_network_run_subnet (struct ospf *ospf, struct connected *co,
         ospf_update_interface_area (co, area);
         configed = 1;
       }
-  
+
   /* If the subnet isn't in any area, deconfigure */
   if (!configed && (oi = ospf_if_table_lookup (co->ifp, co->address)))
     ospf_if_free (oi);
@@ -1039,18 +1040,18 @@ ospf_network_run_interface (struct ospf *ospf, struct interface *ifp,
 {
   struct listnode *cnode;
   struct connected *co;
-  
+
   if (memcmp (ifp->name, "VLINK", 5) == 0)
     return;
-  
+
   /* Network prefix without area is nonsensical */
   if (p)
     assert (given_area != NULL);
-  
+
   /* if interface prefix is match specified prefix,
      then create socket and join multicast group. */
   for (ALL_LIST_ELEMENTS_RO (ifp->connected, cnode, co))
-    ospf_network_run_subnet (ospf, co, p, given_area);  
+    ospf_network_run_subnet (ospf, co, p, given_area);
 }
 
 static void
@@ -1062,7 +1063,7 @@ ospf_network_run (struct prefix *p, struct ospf_area *area)
   /* Schedule Router ID Update. */
   if (area->ospf->router_id.s_addr == 0)
     ospf_router_id_update (area->ospf);
-  
+
   /* Get target interface. */
   for (ALL_LIST_ELEMENTS_RO (om->iflist, node, ifp))
     ospf_network_run_interface (area->ospf, ifp, p, area);
@@ -1086,7 +1087,7 @@ ospf_ls_upd_queue_empty (struct ospf_interface *oi)
 	list_free (lst);
 	rn->info = NULL;
       }
-  
+
   /* remove update event */
   if (oi->t_ls_upd_event)
     {
@@ -1104,9 +1105,9 @@ ospf_if_update (struct ospf *ospf, struct interface *ifp)
   /* OSPF must be ready. */
   if (!ospf_is_ready (ospf))
     return;
-  
+
   ospf_network_run_interface (ospf, ifp, NULL, NULL);
-  
+
   /* Update connected redistribute. */
   update_redistributed(ospf, 1);
 }
@@ -1402,14 +1403,14 @@ ospf_area_export_list_unset (struct ospf *ospf, struct ospf_area * area)
   EXPORT_NAME (area) = NULL;
 
   ospf_area_check_free (ospf, area->area_id);
-  
+
   ospf_schedule_abr_task (ospf);
 
   return 1;
 }
 
 int
-ospf_area_import_list_set (struct ospf *ospf, struct ospf_area *area, 
+ospf_area_import_list_set (struct ospf *ospf, struct ospf_area *area,
                            const char *name)
 {
   struct access_list *list;
@@ -1452,7 +1453,7 @@ ospf_timers_refresh_set (struct ospf *ospf, int interval)
 
   time_left = ospf->lsa_refresh_interval -
     (quagga_time (NULL) - ospf->lsa_refresher_started);
-  
+
   if (time_left > interval)
     {
       OSPF_TIMER_OFF (ospf->t_lsa_refresher);
@@ -1557,7 +1558,7 @@ ospf_nbr_nbma_add (struct ospf_nbr_nbma *nbr_nbma,
 
   if (IPV4_ADDR_SAME (&oi->nbr_self->address.u.prefix4, &nbr_nbma->addr))
     return;
-      
+
   nbr_nbma->oi = oi;
   listnode_add (oi->nbr_nbma, nbr_nbma);
 
@@ -1799,7 +1800,8 @@ ospf_master_init ()
 #define _FIBBING_RT_IFINDEX 1
 
 int
-ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via, int cost, int mtype)
+ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via,
+        int cost, int mtype, int ttl)
 {
     struct external_info *ei;
     struct ospf_lsa *lsa;
@@ -1812,6 +1814,7 @@ ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via, in
       }
     ROUTEMAP_METRIC (ei) = cost;
     ROUTEMAP_METRIC_TYPE (ei) = mtype;
+    ei->ttl = ttl;
 
     /* Generate, install, and flood a new T-5 LSA */
     lsa = ospf_external_lsa_originate (ospf, ei);

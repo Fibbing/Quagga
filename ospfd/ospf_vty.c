@@ -2556,7 +2556,7 @@ ALIAS (no_ospf_neighbor,
 
 
 DEFUN (ospf_refresh_timer, ospf_refresh_timer_cmd,
-       "refresh timer <10-1800>",
+       "refresh timer <2-1800>",
        "Adjust refresh parameters\n"
        "Set refresh timer\n"
        "Timer value in seconds\n")
@@ -2564,7 +2564,7 @@ DEFUN (ospf_refresh_timer, ospf_refresh_timer_cmd,
   struct ospf *ospf = vty->index;
   unsigned int interval;
 
-  VTY_GET_INTEGER_RANGE ("refresh timer", interval, argv[0], 10, 1800);
+  VTY_GET_INTEGER_RANGE ("refresh timer", interval, argv[0], 2, 1800);
   interval = (interval / 10) * 10;
 
   ospf_timers_refresh_set (ospf, interval);
@@ -6809,16 +6809,18 @@ DEFUN (show_ip_ospf_route,
   "OSPF STUB-Network\n"
 
 #define FIBBING_ADD_CMD FIBBING_TARGET_CMD\
-  " via A.B.C.D {cost <0-16777214>|metric-type (1|2)}"
+  " via A.B.C.D {cost <0-16777214>|metric-type (1|2)|ttl <5-3600>}"
 
 #define FIBBING_ADD_STR FIBBING_TARGET_STR\
   "via\n"\
   "OSPF Next-hop\n"\
-  "Cost for redistributed routes\n"\
+  "cost\n"\
   "OSPF cost metric\n"\
-  "OSPF exterior metric type for redistributed routes\n"\
+  "metric-type\n"\
   "Set OSPF External Type 1 metrics\n"\
-  "Set OSPF External Type 2 metrics\n"
+  "Set OSPF External Type 2 metrics\n"\
+  "ttl\n"\
+  "Set the TTL of the route\n"\
 
 
 DEFUN (ospf_fibbing,
@@ -6831,6 +6833,7 @@ DEFUN (ospf_fibbing,
   struct in_addr via;
   int cost = -1;
   int mtype = -1;
+  int ttl = OSPF_LSA_MAXAGE;
 
   if (argc < 4)
     return CMD_WARNING; /* If this ever happens I'll eat my shoes */
@@ -6848,7 +6851,11 @@ DEFUN (ospf_fibbing,
     if (!str2metric_type (argv[3], &mtype))
       return CMD_WARNING;
 
-  if (!ospf_fibbing_add(ospf, p, via, cost, mtype))
+  /* TTL value if specified */
+  if (argv[4] != NULL)
+    VTY_GET_INTEGER_RANGE("ttl", ttl, argv[4], 2, 3600);
+
+  if (!ospf_fibbing_add(ospf, p, via, cost, mtype, ttl))
     {
       vty_out(vty, "Couldn't add the fibbing entry!%s", VTY_NEWLINE);
       return CMD_WARNING;
@@ -7494,6 +7501,9 @@ config_write_fibbing (struct vty *vty, struct ospf *ospf)
             vty_out (vty, " cost %d", ROUTEMAP_METRIC(ei));
         if (ROUTEMAP_METRIC_TYPE (ei) != -1)
             vty_out (vty, " metric-type %d", ROUTEMAP_METRIC(ei));
+        if (ei->ttl != OSPF_LSA_MAXAGE)
+            vty_out (vty, " ttl %d", ei->ttl);
+
         vty_out (vty, "%s", VTY_NEWLINE);
       }
 
