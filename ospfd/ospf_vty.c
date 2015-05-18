@@ -2432,7 +2432,7 @@ ALIAS (no_ospf_neighbor,
 
 
 DEFUN (ospf_refresh_timer, ospf_refresh_timer_cmd,
-       "refresh timer <2-1800>",
+       "refresh timer <1-1800>",
        "Adjust refresh parameters\n"
        "Set refresh timer\n"
        "Timer value in seconds\n")
@@ -2440,7 +2440,7 @@ DEFUN (ospf_refresh_timer, ospf_refresh_timer_cmd,
   struct ospf *ospf = vty->index;
   unsigned int interval;
 
-  VTY_GET_INTEGER_RANGE ("refresh timer", interval, argv[0], 2, 1800);
+  VTY_GET_INTEGER_RANGE ("refresh timer", interval, argv[0], 1, 1800);
 
   ospf_timers_refresh_set (ospf, interval);
 
@@ -2448,7 +2448,7 @@ DEFUN (ospf_refresh_timer, ospf_refresh_timer_cmd,
 }
 
 DEFUN (no_ospf_refresh_timer, no_ospf_refresh_timer_val_cmd,
-       "no refresh timer <10-1800>",
+       "no refresh timer <1-1800>",
        "Adjust refresh parameters\n"
        "Unset refresh timer\n"
        "Timer value in seconds\n")
@@ -2458,7 +2458,7 @@ DEFUN (no_ospf_refresh_timer, no_ospf_refresh_timer_val_cmd,
 
   if (argc == 1)
     {
-      VTY_GET_INTEGER_RANGE ("refresh timer", interval, argv[0], 10, 1800);
+      VTY_GET_INTEGER_RANGE ("refresh timer", interval, argv[0], 1, 1800);
 
       if (ospf->lsa_refresh_interval != interval ||
 	  interval == OSPF_LSA_REFRESH_INTERVAL_DEFAULT)

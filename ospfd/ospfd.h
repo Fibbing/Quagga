@@ -253,7 +253,7 @@ struct ospf
 
   int default_metric;		/* Default metric for redistribute. */
 
-#define OSPF_LSA_REFRESHER_GRANULARITY 10
+#define OSPF_LSA_REFRESHER_GRANULARITY 1
 #define OSPF_LSA_REFRESHER_SLOTS ((OSPF_LS_REFRESH_TIME + \
                                   OSPF_LS_REFRESH_SHIFT)/10 + 1)
   struct
