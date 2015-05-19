@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with GNU Zebra; see the file COPYING.  If not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA. 
+ * Boston, MA 02111-1307, USA.
  */
 
 #ifndef _ZEBRA_OSPF_DUMP_H
@@ -141,6 +141,8 @@ extern int ospf_log_lsdb_add_lsa_hook (struct ospf_lsa *);
 extern int ospf_log_lsdb_remove_lsa_hook (struct ospf_lsa *);
 extern int ospf_log_lsdb_init (void);
 extern void ospf_log_lsdb_terminate (void);
+extern void ospf_log_lsdb_begin (void);
+extern void ospf_log_lsdb_commit (void);
 
 /* Dump LSDB changes output */
 extern char *ospf_log_lsdb_path;
