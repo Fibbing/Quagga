@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with GNU Zebra; see the file COPYING.  If not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA. 
+ * Boston, MA 02111-1307, USA.
  */
 
 #include <zebra.h>
@@ -250,10 +250,10 @@ ospf_timeval_dump (struct timeval *t, char *buf, size_t size)
 #define DAY_IN_SECONDS		(24*HOUR_IN_SECONDS)
 #define WEEK_IN_SECONDS		(7*DAY_IN_SECONDS)
   unsigned long w, d, h, m, s, ms, us;
-  
+
   if (!t)
     return "inactive";
-  
+
   w = d = h = m = s = ms = us = 0;
   memset (buf, 0, size);
 
@@ -269,31 +269,31 @@ ospf_timeval_dump (struct timeval *t, char *buf, size_t size)
       t->tv_sec += ms / 1000;
       ms %= 1000;
     }
-  
+
   if (t->tv_sec > WEEK_IN_SECONDS)
     {
       w = t->tv_sec / WEEK_IN_SECONDS;
       t->tv_sec -= w * WEEK_IN_SECONDS;
     }
-  
+
   if (t->tv_sec > DAY_IN_SECONDS)
     {
       d = t->tv_sec / DAY_IN_SECONDS;
       t->tv_sec -= d * DAY_IN_SECONDS;
     }
-  
+
   if (t->tv_sec >= HOUR_IN_SECONDS)
     {
       h = t->tv_sec / HOUR_IN_SECONDS;
       t->tv_sec -= h * HOUR_IN_SECONDS;
     }
-  
+
   if (t->tv_sec >= MINUTE_IN_SECONDS)
     {
       m = t->tv_sec / MINUTE_IN_SECONDS;
       t->tv_sec -= m * MINUTE_IN_SECONDS;
     }
-  
+
   if (w > 99)
     snprintf (buf, size, "%ldw%1ldd", w, d);
   else if (w)
@@ -318,7 +318,7 @@ ospf_timer_dump (struct thread *t, char *buf, size_t size)
   struct timeval result;
   if (!t)
     return "inactive";
-  
+
   result = tv_sub (t->u.sands, recent_relative_time());
   return ospf_timeval_dump (&result, buf, size);
 }
@@ -382,7 +382,7 @@ void
 ospf_lsa_header_dump (struct lsa_header *lsah)
 {
   const char *lsah_type = LOOKUP (ospf_lsa_type_msg, lsah->type);
-  
+
   zlog_debug ("  LSA Header");
   zlog_debug ("    LS age %d", ntohs (lsah->ls_age));
   zlog_debug ("    Options %d (%s)", lsah->options,
@@ -419,7 +419,7 @@ ospf_router_lsa_dump (struct stream *s, u_int16_t length)
   rl = (struct router_lsa *) STREAM_PNT (s);
 
   zlog_debug ("  Router-LSA");
-  zlog_debug ("    flags %s", 
+  zlog_debug ("    flags %s",
 	     ospf_router_lsa_flags_dump (rl->flags, buf, BUFSIZ));
   zlog_debug ("    # links %d", ntohs (rl->links));
 
@@ -444,11 +444,11 @@ ospf_network_lsa_dump (struct stream *s, u_int16_t length)
 
   nl = (struct network_lsa *) STREAM_PNT (s);
   cnt = (ntohs (nl->header.length) - (OSPF_LSA_HEADER_SIZE + 4)) / 4;
-  
+
   zlog_debug ("  Network-LSA");
   /*
   zlog_debug ("LSA total size %d", ntohs (nl->header.length));
-  zlog_debug ("Network-LSA size %d", 
+  zlog_debug ("Network-LSA size %d",
   ntohs (nl->header.length) - OSPF_LSA_HEADER_SIZE);
   */
   zlog_debug ("    Network Mask %s", inet_ntoa (nl->mask));
@@ -708,7 +708,7 @@ ospf_header_dump (struct ospf_header *ospfh)
       zlog_debug ("* This is not supported authentication type");
       break;
     }
-    
+
 }
 
 void
@@ -762,14 +762,17 @@ ospf_log_lsdb_write (const char *format, ...)
 {
     va_list argptr;
     va_start (argptr, format);
-    vfprintf (ospf_log_lsdb_file, format, argptr); 
+    vfprintf (ospf_log_lsdb_file, format, argptr);
 }
 
 #define LOG_LSDB_ACTION_SEP "|"
+#define LOG_LSDB_ACTION(prefix) prefix LOG_LSDB_ACTION_SEP
 
 static const char *ospf_log_lsdb_fields[] = {
-    "ADD" LOG_LSDB_ACTION_SEP,
-    "REM" LOG_LSDB_ACTION_SEP,
+    LOG_LSDB_ACTION("ADD"),
+    LOG_LSDB_ACTION("REM"),
+	LOG_LSDB_ACTION("BEGIN"),
+	LOG_LSDB_ACTION("COMMIT"),
     "rid",
     "lsa_type",
     "link_id",
@@ -785,6 +788,8 @@ static const char *ospf_log_lsdb_fields[] = {
 enum log_key {
     LOG_LSA_ADD,
     LOG_LSA_REM,
+	LOG_LSA_BEGIN,
+	LOG_LSA_COMMIT,
     LOG_ROUTER,
     LOG_LSATYPE,
     LOG_LINKID,
@@ -874,9 +879,10 @@ ospf_log_lsdb_write_asexternal_lsa (struct as_external_lsa *lsa)
 
 #define LOG_LSDB_LSA_SEP "\n"
 
-static void
+static int
 ospf_log_lsdb_write_lsa (enum log_key key, struct ospf_lsa *lsa)
 {
+	if (!ospf_log_lsdb_file) return 1;
     LOG_LSDB_WRITE_KEY (key);
     ospf_log_lsdb_write_lsa_header (lsa->data);
     switch (lsa->data->type) {
@@ -896,20 +902,40 @@ ospf_log_lsdb_write_lsa (enum log_key key, struct ospf_lsa *lsa)
     }
     ospf_log_lsdb_write (LOG_LSDB_LSA_SEP);
     fflush(ospf_log_lsdb_file);
+	return 0;
 }
 
 int
 ospf_log_lsdb_add_lsa_hook (struct ospf_lsa *lsa)
 {
-    ospf_log_lsdb_write_lsa (LOG_LSA_ADD, lsa);
-    return 0;
+    return ospf_log_lsdb_write_lsa (LOG_LSA_ADD, lsa);
 }
 
 int
 ospf_log_lsdb_remove_lsa_hook (struct ospf_lsa *lsa)
 {
-    ospf_log_lsdb_write_lsa (LOG_LSA_REM, lsa);
-    return 0;
+    return ospf_log_lsdb_write_lsa (LOG_LSA_REM, lsa);
+}
+
+static void
+ospf_log_lsdb_transaction (int key)
+{
+	if (!ospf_log_lsdb_file) return;
+	LOG_LSDB_WRITE_KEY (key);
+	ospf_log_lsdb_write (LOG_LSDB_LSA_SEP);
+	fflush(ospf_log_lsdb_file);
+}
+
+void
+ospf_log_lsdb_begin ()
+{
+	ospf_log_lsdb_transaction(LOG_LSA_BEGIN);
+}
+
+void
+ospf_log_lsdb_commit ()
+{
+	ospf_log_lsdb_transaction(LOG_LSA_COMMIT);
 }
 
 int
@@ -1030,7 +1056,7 @@ ALIAS (debug_ospf_packet,
        "Packet sent\n"
        "Packet received\n"
        "Detail Information\n")
-       
+
 
 DEFUN (no_debug_ospf_packet,
        no_debug_ospf_packet_all_cmd,
@@ -1789,7 +1815,7 @@ config_write_debug (struct vty *vty)
       vty_out (vty, "debug ospf nssa%s", VTY_NEWLINE);
       write = 1;
     }
-  
+
   /* debug ospf packet all detail. */
   r = OSPF_DEBUG_SEND_RECV|OSPF_DEBUG_DETAIL;
   for (i = 0; i < 5; i++)
@@ -1821,7 +1847,7 @@ config_write_debug (struct vty *vty)
     {
       if (conf_debug_ospf_packet[i] == 0)
 	continue;
-      
+
       vty_out (vty, "debug ospf packet %s%s%s",
 	       type_str[i], detail_str[conf_debug_ospf_packet[i]],
 	       VTY_NEWLINE);

@@ -3782,12 +3782,14 @@ ospf_lsa_refresh_walker (struct thread *t)
 					   ospf, ospf->lsa_refresh_interval);
   ospf->lsa_refresher_started = quagga_time (NULL);
 
+  ospf_log_lsdb_begin ();
   for (ALL_LIST_ELEMENTS (lsa_to_refresh, node, nnode, lsa))
     {
       ospf_lsa_refresh (ospf, lsa);
       assert (lsa->lock > 0);
       ospf_lsa_unlock (&lsa); /* lsa_refresh_queue & temp for lsa_to_refresh*/
     }
+  ospf_log_lsdb_commit ();
 
   list_delete (lsa_to_refresh);
 
