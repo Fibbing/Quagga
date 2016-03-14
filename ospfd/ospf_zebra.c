@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with GNU Zebra; see the file COPYING.  If not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA. 
+ * Boston, MA 02111-1307, USA.
  */
 
 #include <zebra.h>
@@ -75,10 +75,10 @@ ospf_router_id_update_zebra (int command, struct zclient *zclient,
   router_id_zebra = router_id.u.prefix4;
 
   ospf = ospf_lookup ();
-  
+
   if (ospf != NULL)
     ospf_router_id_update (ospf);
-  
+
   return 0;
 }
 
@@ -886,7 +886,7 @@ ospf_zebra_read_ipv4 (int command, struct zclient *zclient,
        *     || CHECK_FLAG (api.flags, ZEBRA_FLAG_REJECT))
        * return 0;
        */
-        
+
       ei = ospf_external_info_add (api.type, p, ifindex, nexthop);
 
       if (ospf->router_id.s_addr == 0)
@@ -1168,9 +1168,9 @@ ospf_distance_free (struct ospf_distance *odistance)
 }
 
 int
-ospf_distance_set (struct vty *vty, struct ospf *ospf, 
+ospf_distance_set (struct vty *vty, struct ospf *ospf,
                    const char *distance_str,
-                   const char *ip_str, 
+                   const char *ip_str,
                    const char *access_list_str)
 {
   int ret;
@@ -1217,9 +1217,9 @@ ospf_distance_set (struct vty *vty, struct ospf *ospf,
 }
 
 int
-ospf_distance_unset (struct vty *vty, struct ospf *ospf, 
+ospf_distance_unset (struct vty *vty, struct ospf *ospf,
                      const char *distance_str,
-                     const char *ip_str, char 
+                     const char *ip_str, char
                      const *access_list_str)
 {
   int ret;
@@ -1303,6 +1303,120 @@ static void
 ospf_zebra_connected (struct zclient *zclient)
 {
   zclient_send_requests (zclient, VRF_DEFAULT);
+}
+
+int
+ospf_zebra_lookup_read (u_int32_t addr,  u_int32_t *metric)
+{
+  struct stream *s;
+  uint16_t length;
+  u_char marker;
+  u_char version;
+  uint16_t command;
+  int nbytes;
+  struct in_addr raddr;
+  u_char nexthop_num;
+
+  s = zclient->ibuf;
+  stream_reset (s);
+
+read_header:
+  nbytes = stream_read_try (s, zclient->sock, 2);
+  if (nbytes == -2)
+	  goto read_header;
+
+  if (nbytes != 2)
+	{
+	  zlog_err ("%s: Received too few bytes in reply! Can read only %d byte",
+			    __func__, nbytes);
+	  return 0;
+	}
+  length = stream_getw (s);
+
+  /* Already read 2 bytes, scan until the end */
+read_response:
+  nbytes = stream_read_try (s, zclient->sock, length - 2);
+  if (nbytes == -2)
+	  goto read_response;
+
+  if (nbytes != length - 2)
+	{
+	  zlog_err ("%s: Length field is corrupted! read %d bytes, expected %d",
+			    __func__, nbytes, length -2);
+	  return 0;
+	}
+  marker = stream_getc (s);
+  version = stream_getc (s);
+
+  if (version != ZSERV_VERSION || marker != ZEBRA_HEADER_MARKER)
+    {
+      zlog_err("%s: socket %d version mismatch, marker %d, version %d",
+               __func__, zclient->sock, marker, version);
+      return 0;
+    }
+
+  command = stream_getw (s);
+  if (command != ZEBRA_IPV4_NEXTHOP_LOOKUP)
+	{
+	  zlog_err ("%s: Unexpected Zebra command reply, %s instead of %s",
+			    __func__, zserv_command_string(command),
+				zserv_command_string(ZEBRA_IPV4_NEXTHOP_LOOKUP));
+	  return 0;
+	}
+  raddr.s_addr = stream_get_ipv4 (s);
+  if (raddr.s_addr != addr)
+	{
+	  char addr_str[INET_ADDRSTRLEN], raddr_str[INET_ADDRSTRLEN];
+	  inet_ntop (AF_INET, &raddr, raddr_str, sizeof(raddr_str));
+	  raddr.s_addr = addr;
+	  inet_ntop (AF_INET, &raddr, addr_str, sizeof(addr_str));
+	  zlog_err ("%s: Unexpected Zebra lookup key, %s instead of %s",
+			    __func__, addr_str, raddr_str);
+	  return 0;
+	}
+
+  if (metric)
+	  *metric = stream_getl (s);
+  nexthop_num = stream_getc (s);
+  zlog_debug("%s: Found %d nexthops with metric %d",
+		     __func__, nexthop_num, *metric);
+
+  return nexthop_num;
+}
+
+int
+ospf_zebra_lookup_query (u_int32_t addr)
+{
+  int ret;
+  struct stream *s;
+
+  if (zclient->sock < 0)
+    return 0;
+
+  s = zclient->obuf;
+  stream_reset (s);
+  zclient_create_header (s, ZEBRA_IPV4_NEXTHOP_LOOKUP);
+  stream_put_ipv4 (s, addr);
+
+  stream_putw_at (s, 0, stream_get_endp (s));
+
+  ret = writen (zclient->sock, s->data, stream_get_endp (s));
+  if (ret < 0)
+    {
+      zlog_err ("can't write to zclient->sock");
+      close (zclient->sock);
+      zclient->sock = -1;
+      return 1;
+    }
+  if (ret == 0)
+    {
+      zlog_err ("zclient->sock connection closed");
+      close (zclient->sock);
+      zclient->sock = -1;
+      return 1;
+    }
+
+  return 0;
 }
 
 void
