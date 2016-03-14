@@ -17,7 +17,7 @@
  * You should have received a copy of the GNU General Public License
  * along with GNU Zebra; see the file COPYING.  If not, write to the
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA. 
+ * Boston, MA 02111-1307, USA.
  */
 
 #ifndef _ZEBRA_OSPF_ZEBRA_H
@@ -72,7 +72,15 @@ extern int ospf_distance_set (struct vty *, struct ospf *, const char *,
 			      const char *, const char *);
 extern int ospf_distance_unset (struct vty *, struct ospf *, const char *,
 				const char *, const char *);
+/* Initiate a query to zebra to know the FIB nexthops for the given IP
+ * @see: Get the number of nexthops with ospf_zebra_lookup_read */
+extern int ospf_zebra_lookup_query (u_int32_t);
+/* Return the number of FIB nexthops for the given destination
+ * and set the associated metric if not NULL
+ * @see: The query is initiated in ospf_zebra_lookup_query */
+extern int ospf_zebra_lookup_read (u_int32_t addr, u_int32_t *metric);
 extern void ospf_zebra_init (void);
+
 
 #endif /* _ZEBRA_OSPF_ZEBRA_H */
 

@@ -102,9 +102,9 @@ ospf_find_asbr_route (struct ospf *ospf,
   return best;
 }
 
-struct ospf_route * 
-ospf_find_asbr_route_through_area (struct route_table *rtrs, 
-				   struct prefix_ipv4 *asbr, 
+struct ospf_route *
+ospf_find_asbr_route_through_area (struct route_table *rtrs,
+				   struct prefix_ipv4 *asbr,
 				   struct ospf_area *area)
 {
   struct route_node *rn;
@@ -114,7 +114,7 @@ ospf_find_asbr_route_through_area (struct route_table *rtrs,
     return NULL;
 
   rn = route_node_lookup (rtrs, (struct prefix *) asbr);
- 
+
   if (rn)
     {
       struct listnode *node;
@@ -152,7 +152,7 @@ ospf_ase_forward_address_check (struct ospf *ospf, struct in_addr fwd_addr)
       if (oi->type != OSPF_IFTYPE_VIRTUALLINK)
         if (IPV4_ADDR_SAME (&oi->address->u.prefix4, &fwd_addr))
           return 0;
-  
+
   return 1;
 }
 
@@ -190,7 +190,7 @@ ospf_ase_calculate_asbr_route (struct ospf *ospf,
 	zlog_debug ("ospf_ase_calculate(): Originating router is not an ASBR");
       return NULL;
     }
-   
+
   if (al->e[0].fwd_addr.s_addr != 0)
     {
       if (IS_DEBUG_OSPF (lsa, LSA))
@@ -215,7 +215,7 @@ ospf_ase_calculate_asbr_route (struct ospf *ospf,
       asbr.prefixlen = IPV4_MAX_BITLEN;
 
       rn = route_node_match (rt_network, (struct prefix *) &asbr);
-   
+
       if (rn == NULL)
 	{
 	  if (IS_DEBUG_OSPF (lsa, LSA))
@@ -293,7 +293,8 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
   struct route_node *rn;
   struct ospf_route *new, *or;
   int ret;
-  
+  char fwd_str[INET_ADDRSTRLEN];
+
   assert (lsa);
   al = (struct as_external_lsa *) lsa->data;
 
@@ -326,7 +327,7 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 	zlog_debug ("Route[External]: AS-external-LSA is MAXAGE");
       return 0;
     }
-  
+
   /* (2) If the LSA was originated by the calculating router itself,
      examine the next LSA. */
   if (IS_LSA_SELF (lsa))
@@ -344,12 +345,12 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 	 LSA. If no entries exist for router ASBR (i.e., ASBR is
 	 unreachable), do nothing with this LSA and consider the next
 	 in the list. */
-  
+
   asbr.family = AF_INET;
   asbr.prefix = al->header.adv_router;
   asbr.prefixlen = IPV4_MAX_BITLEN;
   apply_mask_ipv4 (&asbr);
-  
+
   asbr_route = ospf_find_asbr_route (ospf, ospf->new_rtrs, &asbr);
   if (asbr_route == NULL)
     {
@@ -363,12 +364,12 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 	zlog_debug ("Route[External]: Originating router is not an ASBR");
       return 0;
     }
-  
+
   /*     Else, this LSA describes an AS external path to destination
 	 N.  Examine the forwarding address specified in the AS-
 	 external-LSA.  This indicates the IP address to which
 	 packets for the destination should be forwarded. */
-  
+
   if (al->e[0].fwd_addr.s_addr == 0)
     {
       /* If the forwarding address is set to 0.0.0.0, packets should
@@ -387,6 +388,10 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
     }
   else
     {
+
+	  inet_ntop (AF_INET, &al->e[0].fwd_addr, fwd_str, sizeof(fwd_str));
+	  zlog_info ("%s: Checking forwarding address %s",
+			     __func__, fwd_str);
       /* If the forwarding address is non-zero, look up the
 	 forwarding address in the routing table.[24] The matching
 	 routing table entry must specify an intra-area or inter-area
@@ -399,14 +404,26 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 			"address");
 	  return 0;
 	}
-      
+
+	  ret = ospf_zebra_lookup_query (al->e[0].fwd_addr.s_addr);
+
       asbr.family = AF_INET;
       asbr.prefix = al->e[0].fwd_addr;
       asbr.prefixlen = IPV4_MAX_BITLEN;
 
       rn = route_node_match (ospf->new_table, (struct prefix *) &asbr);
-      
-      if (rn == NULL || (asbr_route = rn->info) == NULL)
+
+	  if (ret)
+	    {
+		  ret = 0;
+		  zlog_err("Failed to initiate a request to Zebra!");
+		}
+	  else if (!(ret = ospf_zebra_lookup_read (al->e[0].fwd_addr.s_addr,
+					                              &metric)))
+		zlog_info("%s: Forwarding address %s is not in the FIB",
+			      __func__, fwd_str);
+
+	  if (rn == NULL || (asbr_route = rn->info) == NULL || !ret)
 	{
 	  if (IS_DEBUG_OSPF (lsa, LSA))
 	    zlog_debug ("Route[External]: Can't find route to forwarding "
@@ -423,7 +440,7 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
          entry for the ASBR/forwarding address, and Y the cost
 	 specified in the LSA.  X is in terms of the link state
 	 metric, and Y is a type 1 or 2 external metric. */
-			 
+
 
   /* (5) Look up the routing table entry for the destination N.  If
          no entry exists for N, install the AS external path to N,
@@ -488,7 +505,7 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 	     paths, the paths with the smallest advertised type 2
 	     metric are always preferred. */
       ret = ospf_route_cmp (ospf, new, or);
-  
+
   /*     (c) If the new AS external path is still indistinguishable
              from the current paths in the N's routing table entry,
 	     and RFC1583Compatibility is set to "disabled", select
@@ -560,7 +577,7 @@ ospf_ase_route_match_same (struct route_table *rt, struct prefix *prefix,
    rn = route_node_lookup (rt, prefix);
    if (! rn)
      return 0;
- 
+
    route_unlock_node (rn);
 
    or = rn->info;
@@ -582,17 +599,17 @@ ospf_ase_route_match_same (struct route_table *rt, struct prefix *prefix,
        assert (0);
        return 0;
      }
-   
+
    if (or->paths->count != newor->paths->count)
      return 0;
-       
+
    /* Check each path. */
    for (n1 = listhead (or->paths), n2 = listhead (newor->paths);
 	n1 && n2; n1 = listnextnode (n1), n2 = listnextnode (n2))
-     { 
+     {
        op = listgetdata (n1);
        newop = listgetdata (n2);
-       
+
        if (! IPV4_ADDR_SAME (&op->nexthop, &newop->nexthop))
 	 return 0;
        if (op->ifindex != newop->ifindex)
@@ -607,7 +624,7 @@ ospf_ase_compare_tables (struct route_table *new_external_route,
 {
   struct route_node *rn, *new_rn;
   struct ospf_route *or;
-  
+
   /* Remove deleted routes */
   for (rn = route_top (old_external_route); rn; rn = route_next (rn))
     if ((or = rn->info))
@@ -617,14 +634,14 @@ ospf_ase_compare_tables (struct route_table *new_external_route,
 	else
 	  route_unlock_node (new_rn);
       }
-  
-	
+
+
   /* Install new routes */
   for (rn = route_top (new_external_route); rn; rn = route_next (rn))
     if ((or = rn->info) != NULL)
       if (! ospf_ase_route_match_same (old_external_route, &rn->p, or))
 	ospf_zebra_add ((struct prefix_ipv4 *) &rn->p, or);
-				       
+
   return 0;
 }
 
@@ -760,7 +777,7 @@ ospf_ase_external_lsas_finish (struct route_table *rt)
   struct ospf_lsa *lsa;
   struct list *lst;
   struct listnode *node, *nnode;
-  
+
   for (rn = route_top (rt); rn; rn = route_next (rn))
     if ((lst = rn->info) != NULL)
       {
@@ -768,7 +785,7 @@ ospf_ase_external_lsas_finish (struct route_table *rt)
           ospf_lsa_unlock (&lsa); /* external_lsas lst */
 	list_delete (lst);
       }
-    
+
   route_table_finish (rt);
 }
 
@@ -792,11 +809,11 @@ ospf_ase_incremental_update (struct ospf *ospf, struct ospf_lsa *lsa)
      incremental update is unneeded */
   if (!ospf->new_table)
     return;
-  
+
   /* If there is already an intra-area or inter-area route
      to the destination, no recalculation is necessary
      (internal routes take precedence). */
-  
+
   rn = route_node_lookup (ospf->new_table, (struct prefix *) &p);
   if (rn)
     {
@@ -806,7 +823,7 @@ ospf_ase_incremental_update (struct ospf *ospf, struct ospf_lsa *lsa)
     }
 
   rn = route_node_lookup (ospf->external_lsas, (struct prefix *) &p);
-  assert (rn); 
+  assert (rn);
   assert (rn->info);
   lsas = rn->info;
   route_unlock_node (rn);
