@@ -419,7 +419,7 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 		  zlog_err("Failed to initiate a request to Zebra!");
 		}
 	  else if (!(ret = ospf_zebra_lookup_read (al->e[0].fwd_addr.s_addr,
-					                              &rn->cost)))
+					  (struct ospf_route*)rn->info)))
 		zlog_info("%s: Forwarding address %s is not in the FIB",
 			      __func__, fwd_str);
 

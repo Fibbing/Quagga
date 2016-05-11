@@ -558,7 +558,7 @@ zsend_ipv4_nexthop_lookup (struct zserv *client, struct in_addr addr)
       stream_putl (s, rib->metric);
       num = 0;
       nump = stream_get_endp(s);
-      stream_putc (s, 0);
+      stream_putc (s, num);
       /* Only non-recursive routes are elegible to resolve the nexthop we
        * are looking up. Therefore, we will just iterate over the top
        * chain of nexthops. */
