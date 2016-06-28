@@ -300,6 +300,14 @@ AC_ARG_ENABLE(fpm,
 AC_ARG_ENABLE(werror,
   AS_HELP_STRING([--enable-werror], [enable -Werror (recommended for developers only)]))
 
+AC_ARG_ENABLE(withdraw,
+  AS_HELP_STRING([--enable-withdraw], [enable the support for scheduled withdraw of LSA]))
+
+
+if test "${enable_withdraw}" = "yes"; then
+   AC_DEFINE(HAVE_WITHDRAW,,Support for scheduled LSA withdrawal)
+fi
+
 if test x"${enable_gcc_rdynamic}" != x"no" ; then
   if test x"${enable_gcc_rdynamic}" = x"yes" -o x"$COMPILER" = x"GCC"; then
     LDFLAGS="${LDFLAGS} -rdynamic"
