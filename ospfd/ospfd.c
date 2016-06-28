@@ -75,6 +75,14 @@ static int ospf_network_match_iface (const struct connected *,
 				     const struct prefix *);
 static void ospf_finish_final (struct ospf *);
 
+#ifdef HAVE_WITHDRAW
+static int ospf_fibbing_timed_withdraw (struct thread *t);
+static struct fibbing_withdrawable_prefix * fibbing_withdrawable_prefix_new(
+		struct prefix_ipv4 p, unsigned long long ts);
+static void fibbing_withdrawable_prefix_free(void *p);
+static int fibbing_withdrawable_prefix_cmp(void *a, void *b);
+#endif
+
 #define OSPF_EXTERNAL_LSA_ORIGINATE_DELAY 1
 
 void
@@ -214,6 +222,12 @@ ospf_new (void)
   new->t_lsa_refresher = thread_add_timer (master, ospf_lsa_refresh_walker,
 					   new, new->lsa_refresh_interval);
   new->lsa_refresher_started = quagga_time (NULL);
+#ifdef HAVE_WITHDRAW
+  new->t_withdraw = NULL;
+  new->fibbing_withdraw = list_new();
+  new->fibbing_withdraw->del = fibbing_withdrawable_prefix_free;
+  new->fibbing_withdraw->cmp = fibbing_withdrawable_prefix_cmp;
+#endif
 
   if ((new->fd = ospf_sock_init()) < 0)
     {
@@ -487,6 +501,9 @@ ospf_finish_final (struct ospf *ospf)
   OSPF_TIMER_OFF (ospf->t_write);
 #ifdef HAVE_OPAQUE_LSA
   OSPF_TIMER_OFF (ospf->t_opaque_lsa_self);
+#endif
+#ifdef HAVE_WITHDRAW
+  OSPF_TIMER_OFF(ospf->t_withdraw);
 #endif
 
   close (ospf->fd);
@@ -1667,7 +1684,11 @@ ospf_master_init ()
 
 int
 ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via,
-        int cost, int mtype, int ttl)
+        int cost, int mtype, int ttl
+#ifdef HAVE_WITHDRAW
+		, int withdraw
+#endif
+		)
 {
     struct external_info *ei;
     struct ospf_lsa *lsa;
@@ -1690,6 +1711,27 @@ ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via,
         return 0;
       }
 
+#ifdef HAVE_WITHDRAW
+	if (withdraw == 0)
+		return ospf_fibbing_del(ospf, p);
+
+	else if (withdraw > 0) {
+		OSPF_TIMER_OFF(ospf->t_withdraw);
+
+		struct timeval tv;
+		quagga_gettime (QUAGGA_CLK_MONOTONIC, &tv);
+		listnode_add_sort (ospf->fibbing_withdraw,
+				fibbing_withdrawable_prefix_new(p,
+					tv.tv_usec / 1000 + tv.tv_sec * 1000 + withdraw));
+
+		unsigned long long next_run = ((struct fibbing_withdrawable_prefix *)
+				listhead(ospf->fibbing_withdraw)->data)->ts;
+		ospf->t_withdraw = thread_add_timer_msec (master,
+				ospf_fibbing_timed_withdraw, ospf,
+				next_run - tv.tv_sec * 1000 - tv.tv_usec / 1000);
+	}
+#endif
+
     return 1;
 }
 
@@ -1707,3 +1749,62 @@ ospf_fibbing_del(struct ospf *ospf, struct prefix_ipv4 p)
 
     return 1;
 }
+
+#ifdef HAVE_WITHDRAW
+static int
+ospf_fibbing_timed_withdraw (struct thread *t)
+{
+	struct ospf *ospf = THREAD_ARG(t);
+	struct listnode *node, *next;
+	struct fibbing_withdrawable_prefix *data;
+	struct timeval tv;
+	quagga_gettime(QUAGGA_CLK_MONOTONIC, &tv);
+	unsigned long long now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+
+	for (ALL_LIST_ELEMENTS (ospf->fibbing_withdraw, node, next, data)) {
+		if (data->ts <= now) {
+			/* Remove all expired prefixes */
+			ospf_fibbing_del(ospf, data->p);
+			listnode_delete (ospf->fibbing_withdraw, node);
+			fibbing_withdrawable_prefix_free(data);
+		} else {
+			/* Next entries are not yet expired */
+			break;
+		}
+	}
+
+	if (listcount(ospf->fibbing_withdraw)) {
+		/* Schedule next withdrawal */
+		long next_run = ((struct fibbing_withdrawable_prefix *)
+				listhead(ospf->fibbing_withdraw)->data)->ts;
+		ospf->t_withdraw = thread_add_timer_msec (master,
+				ospf_fibbing_timed_withdraw, ospf, next_run);
+	} else {
+		ospf->t_withdraw = NULL;
+	}
+	return 0;
+}
+
+static struct fibbing_withdrawable_prefix *
+fibbing_withdrawable_prefix_new(struct prefix_ipv4 p, unsigned long long ts)
+{
+	struct fibbing_withdrawable_prefix *entry = XCALLOC(MTYPE_OSPF_TOP,
+			sizeof(*entry));
+	entry->p = p;
+	entry->ts = ts;
+	return entry;
+}
+
+static void
+fibbing_withdrawable_prefix_free(void *p)
+{
+	XFREE(MTYPE_OSPF_TOP, p);
+}
+
+static int
+fibbing_withdrawable_prefix_cmp(void *a, void *b)
+{
+	return ((struct fibbing_withdrawable_prefix *)a)->ts -
+		((struct fibbing_withdrawable_prefix *)b)->ts;
+}
+#endif /* HAVE_WTIHDRAW */

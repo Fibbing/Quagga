@@ -76,6 +76,14 @@
 #define OSPF_LS_REFRESH_SHIFT       (60 * 15)
 #define OSPF_LS_REFRESH_JITTER      60
 
+#ifdef HAVE_WITHDRAW
+struct fibbing_withdrawable_prefix
+{
+	struct prefix_ipv4 p;
+	unsigned long long ts;
+};
+#endif
+
 /* OSPF master for system wide configuration and variables. */
 struct ospf_master
 {
@@ -218,6 +226,10 @@ struct ospf
 
   struct thread *t_deferred_shutdown;	/* deferred/stub-router shutdown timer*/
 
+#ifdef HAVE_WITHDRAW
+  struct thread *t_withdraw;          /* Fibbing programmed withdraw timer */
+#endif
+
   struct thread *t_write;
   struct thread *t_read;
   int fd;
@@ -278,6 +290,11 @@ struct ospf
 
   /* Statistics for LSA used for new instantiation. */
   u_int32_t rx_lsa_count;
+
+#ifdef HAVE_WITHDRAW
+  /* List of prefixes and expiration timestamps to withdraw */
+  struct list *fibbing_withdraw;
+#endif
 
   struct route_table *distance_table;
 };
@@ -563,7 +580,11 @@ extern void ospf_area_add_if (struct ospf_area *, struct ospf_interface *);
 extern void ospf_area_del_if (struct ospf_area *, struct ospf_interface *);
 
 extern int ospf_fibbing_add(struct ospf *, struct prefix_ipv4, struct in_addr,
-                            int, int, int);
+                            int, int, int
+#ifdef HAVE_WITHDRAW
+							, int
+#endif
+							);
 extern int ospf_fibbing_del(struct ospf *, struct prefix_ipv4);
 
 extern void ospf_route_map_init (void);

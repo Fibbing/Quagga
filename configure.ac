@@ -280,6 +280,13 @@ AC_ARG_ENABLE(pcreposix,
 [  --enable-pcreposix          enable using PCRE Posix libs for regex functions])
 AC_ARG_ENABLE(fpm,
 [  --enable-fpm            enable Forwarding Plane Manager support])
+AC_ARG_ENABLE(withdraw,
+[  --enable-withdraw            enable the support for scheduled withdraw of LSA])
+
+
+if test "${enable_withdraw}" = "yes"; then
+   AC_DEFINE(HAVE_WITHDRAW,,Support for scheduled LSA withdrawal)
+fi
 
 if test x"${enable_gcc_ultra_verbose}" = x"yes" ; then
   CFLAGS="${CFLAGS} -W -Wcast-qual -Wstrict-prototypes"

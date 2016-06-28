@@ -6655,10 +6655,19 @@ DEFUN (show_ip_ospf_route,
 #define FIBBING_TARGET_STR "Fibbing entry\n"\
   "OSPF STUB-Network\n"
 
-#define FIBBING_ADD_CMD FIBBING_TARGET_CMD\
-  " via A.B.C.D {cost <0-16777214>|metric-type (1|2)|ttl <5-3600>}"
+#define _FIBBING_ADD_CMD FIBBING_TARGET_CMD\
+  " via A.B.C.D "\
+  "{cost <0-16777214>|metric-type (1|2)|ttl <2-3600>"
 
-#define FIBBING_ADD_STR FIBBING_TARGET_STR\
+#ifdef HAVE_WITHDRAW
+	#define FIBBING_ADD_CMD _FIBBING_ADD_CMD\
+	  "|withdraw <0-65535>}"
+#else
+	#define FIBBING_ADD_CMD _FIBBING_ADD_CMD\
+	  "}"
+#endif
+
+#define _FIBBING_ADD_STR FIBBING_TARGET_STR\
   "via\n"\
   "OSPF Next-hop\n"\
   "cost\n"\
@@ -6667,7 +6676,15 @@ DEFUN (show_ip_ospf_route,
   "Set OSPF External Type 1 metrics\n"\
   "Set OSPF External Type 2 metrics\n"\
   "ttl\n"\
-  "Set the TTL of the route\n"\
+  "Set the TTL of the route\n"
+
+#ifdef HAVE_WITHDRAW
+	#define FIBBING_ADD_STR _FIBBING_ADD_STR\
+	  "withdraw\n"\
+	  "Withdraw the route after a certain amount of ms\n"
+#else
+	#define FIBBING_ADD_STR _FIBBING_ADD_STR
+#endif
 
 
 DEFUN (ospf_fibbing,
@@ -6681,6 +6698,9 @@ DEFUN (ospf_fibbing,
   int cost = -1;
   int mtype = -1;
   int ttl = OSPF_LSA_MAXAGE;
+#ifdef HAVE_WITHDRAW
+  int withdraw = -1;
+#endif
 
   if (argc < 4)
     return CMD_WARNING; /* If this ever happens I'll eat my shoes */
@@ -6702,7 +6722,17 @@ DEFUN (ospf_fibbing,
   if (argv[4] != NULL)
     VTY_GET_INTEGER_RANGE("ttl", ttl, argv[4], 2, 3600);
 
-  if (!ospf_fibbing_add(ospf, p, via, cost, mtype, ttl))
+#ifdef HAVE_WITHDRAW
+  /* Withdraw value if specified */
+  if (argv[5] != NULL)
+	VTY_GET_INTEGER_RANGE("withdraw", withdraw, argv[5], 0, 65535);
+#endif
+
+  if (!ospf_fibbing_add(ospf, p, via, cost, mtype, ttl
+#ifdef HAVE_WITHDRAW
+			  ,withdraw
+#endif
+			  ))
     {
       vty_out(vty, "Couldn't add the fibbing entry!%s", VTY_NEWLINE);
       return CMD_WARNING;
