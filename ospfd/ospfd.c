@@ -78,7 +78,7 @@ static void ospf_finish_final (struct ospf *);
 #ifdef HAVE_WITHDRAW
 static int ospf_fibbing_timed_withdraw (struct thread *t);
 static struct fibbing_withdrawable_prefix * fibbing_withdrawable_prefix_new(
-		struct prefix_ipv4 p, unsigned long long ts);
+		struct prefix_ipv4 p, long long ts);
 static void fibbing_withdrawable_prefix_free(void *p);
 static int fibbing_withdrawable_prefix_cmp(void *a, void *b);
 #endif
@@ -1712,24 +1712,28 @@ ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via,
       }
 
 #ifdef HAVE_WITHDRAW
-	if (withdraw == 0)
-		return ospf_fibbing_del(ospf, p);
 
-	else if (withdraw > 0) {
+	if (withdraw > 0) {
 		OSPF_TIMER_OFF(ospf->t_withdraw);
 
 		struct timeval tv;
 		quagga_gettime (QUAGGA_CLK_MONOTONIC, &tv);
-		listnode_add_sort (ospf->fibbing_withdraw,
-				fibbing_withdrawable_prefix_new(p,
-					tv.tv_usec / 1000 + tv.tv_sec * 1000 + withdraw));
+		long long current_time = tv.tv_usec / 1000LL + tv.tv_sec * 1000;
 
-		unsigned long long next_run = ((struct fibbing_withdrawable_prefix *)
-				listhead(ospf->fibbing_withdraw)->data)->ts;
+		listnode_add_sort (ospf->fibbing_withdraw,
+			fibbing_withdrawable_prefix_new(p, current_time + withdraw));
+
+		long long next_run = ((struct fibbing_withdrawable_prefix *)
+			listhead(ospf->fibbing_withdraw)->data)->ts - current_time;
+
+		if (next_run < 0)
+			next_run = 0;
+
 		ospf->t_withdraw = thread_add_timer_msec (master,
-				ospf_fibbing_timed_withdraw, ospf,
-				next_run - tv.tv_sec * 1000 - tv.tv_usec / 1000);
-	}
+			ospf_fibbing_timed_withdraw, ospf, next_run);
+
+	} else if (withdraw == 0)
+		return ospf_fibbing_del(ospf, p);
 #endif
 
     return 1;
@@ -1759,13 +1763,13 @@ ospf_fibbing_timed_withdraw (struct thread *t)
 	struct fibbing_withdrawable_prefix *data;
 	struct timeval tv;
 	quagga_gettime(QUAGGA_CLK_MONOTONIC, &tv);
-	unsigned long long now = tv.tv_sec * 1000 + tv.tv_usec / 1000;
+	long long now = tv.tv_sec * 1000LL + tv.tv_usec / 1000;
 
 	for (ALL_LIST_ELEMENTS (ospf->fibbing_withdraw, node, next, data)) {
 		if (data->ts <= now) {
 			/* Remove all expired prefixes */
 			ospf_fibbing_del(ospf, data->p);
-			listnode_delete (ospf->fibbing_withdraw, node);
+			list_delete_node (ospf->fibbing_withdraw, node);
 			fibbing_withdrawable_prefix_free(data);
 		} else {
 			/* Next entries are not yet expired */
@@ -1776,7 +1780,7 @@ ospf_fibbing_timed_withdraw (struct thread *t)
 	if (listcount(ospf->fibbing_withdraw)) {
 		/* Schedule next withdrawal */
 		long next_run = ((struct fibbing_withdrawable_prefix *)
-				listhead(ospf->fibbing_withdraw)->data)->ts;
+				listhead(ospf->fibbing_withdraw)->data)->ts - now;
 		ospf->t_withdraw = thread_add_timer_msec (master,
 				ospf_fibbing_timed_withdraw, ospf, next_run);
 	} else {
@@ -1786,7 +1790,7 @@ ospf_fibbing_timed_withdraw (struct thread *t)
 }
 
 static struct fibbing_withdrawable_prefix *
-fibbing_withdrawable_prefix_new(struct prefix_ipv4 p, unsigned long long ts)
+fibbing_withdrawable_prefix_new(struct prefix_ipv4 p, long long ts)
 {
 	struct fibbing_withdrawable_prefix *entry = XCALLOC(MTYPE_OSPF_TOP,
 			sizeof(*entry));

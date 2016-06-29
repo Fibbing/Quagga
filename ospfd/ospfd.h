@@ -80,7 +80,7 @@
 struct fibbing_withdrawable_prefix
 {
 	struct prefix_ipv4 p;
-	unsigned long long ts;
+	long long ts;
 };
 #endif
 
