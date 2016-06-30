@@ -293,7 +293,6 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
   struct route_node *rn;
   struct ospf_route *new, *or;
   int ret;
-  char fwd_str[INET_ADDRSTRLEN];
 
   assert (lsa);
   al = (struct as_external_lsa *) lsa->data;
@@ -388,10 +387,6 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
     }
   else
     {
-
-	  inet_ntop (AF_INET, &al->e[0].fwd_addr, fwd_str, sizeof(fwd_str));
-	  zlog_info ("%s: Checking forwarding address %s",
-			     __func__, fwd_str);
       /* If the forwarding address is non-zero, look up the
 	 forwarding address in the routing table.[24] The matching
 	 routing table entry must specify an intra-area or inter-area
@@ -410,20 +405,13 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
       asbr.family = AF_INET;
       asbr.prefix = al->e[0].fwd_addr;
       asbr.prefixlen = IPV4_MAX_BITLEN;
-
       rn = route_node_match (ospf->new_table, (struct prefix *) &asbr);
 
-	  if (ret)
-	    {
-		  ret = 0;
-		  zlog_err("Failed to initiate a request to Zebra!");
-		}
-	  else if (!(ret = ospf_zebra_lookup_read (al->e[0].fwd_addr.s_addr,
+	  /* Check that the FA is in the OSPF domain*/
+	  if (ret || rn == NULL || rn->info == NULL ||
+			  /* check that the FA is in the FIB */
+			!(ospf_zebra_lookup_read (al->e[0].fwd_addr.s_addr,
 					  (struct ospf_route*)rn->info)))
-		zlog_info("%s: Forwarding address %s is not in the FIB",
-			      __func__, fwd_str);
-
-	  if (rn == NULL || (asbr_route = rn->info) == NULL || !ret)
 	{
 	  if (IS_DEBUG_OSPF (lsa, LSA))
 	    zlog_debug ("Route[External]: Can't find route to forwarding "
@@ -432,7 +420,7 @@ ospf_ase_calculate_route (struct ospf *ospf, struct ospf_lsa * lsa)
 	    route_unlock_node (rn);
 	  return 0;
 	}
-
+	  asbr_route = rn->info;
       route_unlock_node (rn);
     }
 
