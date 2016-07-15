@@ -82,6 +82,10 @@ static struct fibbing_withdrawable_prefix * fibbing_withdrawable_prefix_new(
 static void fibbing_withdrawable_prefix_free(void *p);
 static int fibbing_withdrawable_prefix_cmp(void *a, void *b);
 #endif
+static void fibbing_add_batch (struct ospf *ospf);
+static int fibbing_add(struct ospf *ospf, struct batched_fibbing_route *r);
+static struct batched_fibbing_route* fibbing_batched_route_new();
+static void fibbing_batched_route_free(void *r);
 
 #define OSPF_EXTERNAL_LSA_ORIGINATE_DELAY 1
 
@@ -247,6 +251,10 @@ ospf_new (void)
     }
   new->t_read = thread_add_read (master, ospf_read, new, new->fd);
   new->oi_write_q = list_new ();
+
+  new->fibbing_batch = 1;
+  new->batched_fibbing_routes = list_new();
+  new->batched_fibbing_routes->del = fibbing_batched_route_free;
 
   return new;
 }
@@ -559,6 +567,10 @@ ospf_finish_final (struct ospf *ospf)
     }
 
   list_delete (ospf->areas);
+#ifdef HAVE_WITHDRAW
+  list_delete(ospf->fibbing_withdraw);
+#endif
+  list_delete(ospf->batched_fibbing_routes);
 
   for (i = ZEBRA_ROUTE_SYSTEM; i <= ZEBRA_ROUTE_MAX; i++)
     if (EXTERNAL_INFO (i) != NULL)
@@ -1682,61 +1694,45 @@ ospf_master_init ()
 /* Hard-code this route as using eth0 (== ifindex 1) as anyway we won't forward anything */
 #define _FIBBING_RT_IFINDEX 1
 
+static struct batched_fibbing_route* fibbing_batched_route_new()
+{
+	return XCALLOC(MTYPE_OSPF_TOP, sizeof(struct batched_fibbing_route));
+}
+
 int
 ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via,
-        int cost, int mtype, int ttl
+        int cost, int mtype, int ttl, int range
 #ifdef HAVE_WITHDRAW
 		, int withdraw
 #endif
 		)
 {
-    struct external_info *ei;
-    struct ospf_lsa *lsa;
+	int i;
+	uint8_t *base = (uint8_t*)&p.prefix.s_addr, *nibble;
+	struct batched_fibbing_route *r;
 
-    ei = ospf_external_info_add (ZEBRA_ROUTE_FIBBING, p, _FIBBING_RT_IFINDEX, via);
-    if (!ei)
-      {
-        zlog_debug ("Failed to add the external route entry for the fibbing rule!");
-        return 0;
-      }
-    ROUTEMAP_METRIC (ei) = cost;
-    ROUTEMAP_METRIC_TYPE (ei) = mtype;
-    ei->ttl = ttl;
+	for (i = 0; i < range; ++i) {
+		r = fibbing_batched_route_new();
+		r->mtype = mtype;
+		r->ttl = ttl;
+		r->via = via;
+		r->cost = cost;
+		r->withdraw = withdraw;
+		r->p = p;
+		if (range != 1) {
+			nibble = (uint8_t*)&r->p.prefix.s_addr;
+			nibble[2] = base[2] + i / 254;
+			nibble[3] = base[3] + 1 + i % 254;
+			r->p.prefixlen = 32;
+		}
+		listnode_add(ospf->batched_fibbing_routes, r);
+	}
 
-    /* Generate, install, and flood a new T-5 LSA */
-    lsa = ospf_external_lsa_originate (ospf, ei);
-    if (!lsa)
-      {
-        zlog_debug ("Failed to originate the fibbing LSA!");
-        return 0;
-      }
+	if (listcount(ospf->batched_fibbing_routes) >=
+			(unsigned int)ospf->fibbing_batch)
+		fibbing_add_batch(ospf);
 
-#ifdef HAVE_WITHDRAW
-
-	if (withdraw > 0) {
-		OSPF_TIMER_OFF(ospf->t_withdraw);
-
-		struct timeval tv;
-		quagga_gettime (QUAGGA_CLK_MONOTONIC, &tv);
-		long long current_time = tv.tv_usec / 1000LL + tv.tv_sec * 1000;
-
-		listnode_add_sort (ospf->fibbing_withdraw,
-			fibbing_withdrawable_prefix_new(p, current_time + withdraw));
-
-		long long next_run = ((struct fibbing_withdrawable_prefix *)
-			listhead(ospf->fibbing_withdraw)->data)->ts - current_time;
-
-		if (next_run < 0)
-			next_run = 0;
-
-		ospf->t_withdraw = thread_add_timer_msec (master,
-			ospf_fibbing_timed_withdraw, ospf, next_run);
-
-	} else if (withdraw == 0)
-		return ospf_fibbing_del(ospf, p);
-#endif
-
-    return 1;
+	return 1;
 }
 
 int
@@ -1812,3 +1808,81 @@ fibbing_withdrawable_prefix_cmp(void *a, void *b)
 		((struct fibbing_withdrawable_prefix *)b)->ts;
 }
 #endif /* HAVE_WTIHDRAW */
+
+void
+ospf_fibbing_set_batch(struct ospf *ospf, int batch)
+{
+	ospf->fibbing_batch = batch;
+	if ((unsigned int)batch > listcount (ospf->batched_fibbing_routes))
+		fibbing_add_batch(ospf);
+}
+
+static void
+fibbing_add_batch (struct ospf *ospf)
+{
+	struct listnode *node, *next;
+	struct batched_fibbing_route *r;
+
+	for (ALL_LIST_ELEMENTS (ospf->batched_fibbing_routes, node, next, r)) {
+		fibbing_add(ospf, r);
+		list_delete_node (ospf->batched_fibbing_routes, node);
+		fibbing_batched_route_free(r);
+	}
+}
+
+
+static int
+fibbing_add(struct ospf *ospf, struct batched_fibbing_route *r)
+{
+    struct external_info *ei;
+    struct ospf_lsa *lsa;
+
+    ei = ospf_external_info_add (ZEBRA_ROUTE_FIBBING, r->p,
+			_FIBBING_RT_IFINDEX, r->via);
+    if (!ei)
+      {
+        zlog_debug ("Failed to add the external route entry for the fibbing rule!");
+        return 0;
+      }
+    ROUTEMAP_METRIC (ei) = r->cost;
+    ROUTEMAP_METRIC_TYPE (ei) = r->mtype;
+    ei->ttl = r->ttl;
+
+    /* Generate, install, and flood a new T-5 LSA */
+    lsa = ospf_external_lsa_originate (ospf, ei);
+    if (!lsa)
+      {
+        zlog_debug ("Failed to originate the fibbing LSA!");
+        return 0;
+      }
+
+#ifdef HAVE_WITHDRAW
+
+	if (r-> withdraw >= 0) {
+		OSPF_TIMER_OFF(ospf->t_withdraw);
+
+		struct timeval tv;
+		quagga_gettime (QUAGGA_CLK_MONOTONIC, &tv);
+		long long current_time = tv.tv_usec / 1000LL + tv.tv_sec * 1000;
+
+		listnode_add_sort (ospf->fibbing_withdraw,
+			fibbing_withdrawable_prefix_new(r->p, current_time + r->withdraw));
+
+		long long next_run = ((struct fibbing_withdrawable_prefix *)
+			listhead(ospf->fibbing_withdraw)->data)->ts - current_time;
+
+		if (next_run < 0)
+			next_run = 0;
+
+		ospf->t_withdraw = thread_add_timer_msec (master,
+			ospf_fibbing_timed_withdraw, ospf, next_run);
+	}
+#endif
+	return 1;
+}
+
+static void
+fibbing_batched_route_free(void *r)
+{
+	XFREE(MTYPE_OSPF_TOP, r);
+}

@@ -84,6 +84,18 @@ struct fibbing_withdrawable_prefix
 };
 #endif
 
+
+struct batched_fibbing_route {
+	struct prefix_ipv4 p;
+	struct in_addr via;
+	int cost;
+	int mtype;
+	int ttl;
+#ifdef HAVE_WITHDRAW
+	int withdraw;
+#endif
+};
+
 /* OSPF master for system wide configuration and variables. */
 struct ospf_master
 {
@@ -297,6 +309,9 @@ struct ospf
 #endif
 
   struct route_table *distance_table;
+
+  struct list *batched_fibbing_routes;
+  int fibbing_batch;
 };
 
 /* OSPF area structure. */
@@ -580,12 +595,13 @@ extern void ospf_area_add_if (struct ospf_area *, struct ospf_interface *);
 extern void ospf_area_del_if (struct ospf_area *, struct ospf_interface *);
 
 extern int ospf_fibbing_add(struct ospf *, struct prefix_ipv4, struct in_addr,
-                            int, int, int
+                            int, int, int, int
 #ifdef HAVE_WITHDRAW
 							, int
 #endif
 							);
 extern int ospf_fibbing_del(struct ospf *, struct prefix_ipv4);
+extern void ospf_fibbing_set_batch(struct ospf *, int);
 
 extern void ospf_route_map_init (void);
 extern void ospf_snmp_init (void);
