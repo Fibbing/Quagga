@@ -6810,7 +6810,7 @@ DEFUN (show_ip_ospf_route,
 
 #define _FIBBING_ADD_CMD FIBBING_TARGET_CMD\
   " via A.B.C.D "\
-  "{cost <0-16777214>|metric-type (1|2)|ttl <2-3600>"
+  "{cost <0-16777214>|metric-type (1|2)|ttl <2-3600>|range <1-20000>"
 
 #ifdef HAVE_WITHDRAW
 	#define FIBBING_ADD_CMD _FIBBING_ADD_CMD\
@@ -6829,7 +6829,9 @@ DEFUN (show_ip_ospf_route,
   "Set OSPF External Type 1 metrics\n"\
   "Set OSPF External Type 2 metrics\n"\
   "ttl\n"\
-  "Set the TTL of the route\n"
+  "Set the TTL of the route\n"\
+  "range\n"\
+  "Number of /32s to extract from the stub network\n"
 
 #ifdef HAVE_WITHDRAW
 	#define FIBBING_ADD_STR _FIBBING_ADD_STR\
@@ -6854,6 +6856,7 @@ DEFUN (ospf_fibbing,
 #ifdef HAVE_WITHDRAW
   int withdraw = -1;
 #endif
+  int range = 1;
 
   if (argc < 4)
     return CMD_WARNING; /* If this ever happens I'll eat my shoes */
@@ -6874,14 +6877,16 @@ DEFUN (ospf_fibbing,
   /* TTL value if specified */
   if (argv[4] != NULL)
     VTY_GET_INTEGER_RANGE("ttl", ttl, argv[4], 2, 3600);
+  if (argv[5] != NULL)
+    VTY_GET_INTEGER_RANGE("range", range, argv[5], 1, 20000);
 
 #ifdef HAVE_WITHDRAW
   /* Withdraw value if specified */
-  if (argv[5] != NULL)
-	VTY_GET_INTEGER_RANGE("withdraw", withdraw, argv[5], 0, 65535);
+  if (argv[6] != NULL)
+	VTY_GET_INTEGER_RANGE("withdraw", withdraw, argv[6], 0, 65535);
 #endif
 
-  if (!ospf_fibbing_add(ospf, p, via, cost, mtype, ttl
+  if (!ospf_fibbing_add(ospf, p, via, cost, mtype, ttl, range
 #ifdef HAVE_WITHDRAW
 			  ,withdraw
 #endif
@@ -6893,6 +6898,23 @@ DEFUN (ospf_fibbing,
 
   return CMD_SUCCESS;
 }
+
+DEFUN (ospf_fibbing_batch,
+	   ospf_fibbing_batch_cmd,
+	   "fibbing batch <1-5000>",
+	   "Fibbing parameter\n"
+	   "Batch LSA generation\n"
+	   "Number of LSA per batch\n")
+{
+	int batch;
+	struct ospf* ospf = vty->index ? vty->index : ospf_get ();
+
+	VTY_GET_INTEGER_RANGE("batch", batch, argv[0], 1, 5000);
+	ospf_fibbing_set_batch(ospf, batch);
+
+	return CMD_SUCCESS;
+}
+
 
 DEFUN (no_ospf_fibbing,
        no_ospf_fibbing_cmd,
@@ -6928,6 +6950,15 @@ ALIAS (no_ospf_fibbing,
        IP_STR
        OSPF_STR
        FIBBING_TARGET_STR)
+
+ALIAS (ospf_fibbing_batch,
+	   fibbing_batch_cmd,
+	   "ip ospf fibbing batch <1-5000>",
+	   IP_STR
+	   OSPF_STR
+	   "Fibbing parameter\n"
+	   "Batch LSA generation\n"
+	   "Number of LSA per batch\n")
 
 
 const char *ospf_abr_type_str[] =
@@ -7514,8 +7545,15 @@ static int
 config_write_fibbing (struct vty *vty, struct ospf *ospf)
 {
   struct route_node *rn;
-  if (!ospf || !EXTERNAL_INFO (ZEBRA_ROUTE_FIBBING))
+  if (!ospf)
       return 0;
+
+  if (ospf->fibbing_batch != 1)
+	  vty_out (vty, "  fibbing batch %d%s", ospf->fibbing_batch, VTY_NEWLINE);
+
+  if (!EXTERNAL_INFO (ZEBRA_ROUTE_FIBBING))
+	  return 0;
+
   /* `fibbing' print. */
   for (rn = route_top (EXTERNAL_INFO (ZEBRA_ROUTE_FIBBING));
        rn; rn = route_next (rn))
@@ -8061,6 +8099,8 @@ ospf_vty_init (void)
   install_element (CONFIG_NODE, &fibbing_cmd);
   install_element (OSPF_NODE, &no_ospf_fibbing_cmd);
   install_element (CONFIG_NODE, &no_fibbing_cmd);
+  install_element (OSPF_NODE, &ospf_fibbing_batch_cmd);
+  install_element (CONFIG_NODE, &fibbing_batch_cmd);
 
   /* Init interface related vty commands. */
   ospf_vty_if_init ();
