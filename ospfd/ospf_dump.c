@@ -780,7 +780,8 @@ static const char *ospf_log_lsdb_fields[] = {
     "link_metric",
     "link_metrictype",
     "opaque_data",
-    "fwd_addr"
+    "fwd_addr",
+	"age"
 };
 
 enum log_key {
@@ -797,7 +798,8 @@ enum log_key {
     LOG_METRIC,
     LOG_METRICTYPE,
     LOG_OPAQUE,
-    LOG_FWDADDR
+    LOG_FWDADDR,
+	LOG_AGE
 };
 
 #define LOG_LSDB_GET_KEY(key) ospf_log_lsdb_fields[key]
@@ -828,6 +830,7 @@ ospf_log_lsdb_write_lsa_header (struct lsa_header *hdr)
    ospf_log_lsdb_write_field (LOG_ROUTER, inet_ntoa (hdr->adv_router));
    ospf_log_lsdb_write_field_unsigned (LOG_LSATYPE, hdr->type);
    ospf_log_lsdb_write_field (LOG_LINKID, inet_ntoa (hdr->id));
+   ospf_log_lsdb_write_field_unsigned (LOG_AGE, hdr->ls_age);
 }
 
 #define LOG_LSDB_GROUP_SEP " "
