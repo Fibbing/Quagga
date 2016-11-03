@@ -832,7 +832,7 @@ ospf_log_lsdb_write_lsa_header (struct lsa_header *hdr)
    ospf_log_lsdb_write_field (LOG_ROUTER, inet_ntoa (hdr->adv_router));
    ospf_log_lsdb_write_field_unsigned (LOG_LSATYPE, hdr->type);
    ospf_log_lsdb_write_field (LOG_LINKID, inet_ntoa (hdr->id));
-   ospf_log_lsdb_write_field_unsigned (LOG_AGE, hdr->ls_age);
+   ospf_log_lsdb_write_field_unsigned (LOG_AGE, ntohs(hdr->ls_age));
 }
 
 #define LOG_LSDB_GROUP_SEP " "
