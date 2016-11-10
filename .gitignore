@@ -40,3 +40,4 @@ m4/*.m4
 cscope.*
 tags
 *.pyc
+.idea/
