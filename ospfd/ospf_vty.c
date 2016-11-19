@@ -7547,6 +7547,14 @@ ospf_config_write (struct vty *vty)
 		   ospf->ref_bandwidth / 1000, VTY_NEWLINE);
         }
 
+      /* LSA timers */
+      if (ospf->min_ls_interval != OSPF_MIN_LS_INTERVAL)
+	vty_out (vty, " timers throttle lsa all %d%s",
+		 ospf->min_ls_interval, VTY_NEWLINE);
+      if (ospf->min_ls_arrival != OSPF_MIN_LS_ARRIVAL)
+	vty_out (vty, " timers lsa arrival %d%s",
+		 ospf->min_ls_arrival, VTY_NEWLINE);
+      
       /* SPF timers print. */
       if (ospf->spf_delay != OSPF_SPF_DELAY_DEFAULT ||
 	  ospf->spf_holdtime != OSPF_SPF_HOLDTIME_DEFAULT ||
@@ -7961,6 +7969,12 @@ ospf_vty_init (void)
   install_element (OSPF_NODE, &ospf_area_import_list_cmd);
   install_element (OSPF_NODE, &no_ospf_area_import_list_cmd);
 
+  /* LSA timer commands */
+  install_element (OSPF_NODE, &ospf_timers_min_ls_interval_cmd);
+  install_element (OSPF_NODE, &no_ospf_timers_min_ls_interval_cmd);
+  install_element (OSPF_NODE, &ospf_timers_min_ls_arrival_cmd);
+  install_element (OSPF_NODE, &no_ospf_timers_min_ls_arrival_cmd);
+  
   /* SPF timer commands */
   install_element (OSPF_NODE, &ospf_timers_spf_cmd);
   install_element (OSPF_NODE, &no_ospf_timers_spf_cmd);
