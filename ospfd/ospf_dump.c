@@ -829,13 +829,21 @@ ospf_log_lsdb_write_field_unsigned (enum log_key key, uint32_t val)
 }
 
 static void
+ospf_log_lsdb_write_integer_field (enum log_key key, int32_t val)
+{
+    ospf_log_lsdb_write (
+            LOG_LSDB_FIELD_INTER_SEP "%s" LOG_LSDB_FIELD_INTRA_SEP "%d",
+            LOG_LSDB_GET_KEY (key), val);
+}
+
+static void
 ospf_log_lsdb_write_lsa_header (struct lsa_header *hdr)
 {
    ospf_log_lsdb_write_field (LOG_ROUTER, inet_ntoa (hdr->adv_router));
    ospf_log_lsdb_write_field_unsigned (LOG_LSATYPE, hdr->type);
    ospf_log_lsdb_write_field (LOG_LINKID, inet_ntoa (hdr->id));
    ospf_log_lsdb_write_field_unsigned (LOG_AGE, ntohs(hdr->ls_age));
-   ospf_log_lsdb_write_field_unsigned(LOG_SEQNUM, ntohl(hdr->ls_seqnum));
+   ospf_log_lsdb_write_integer_field (LOG_SEQNUM, ntohl(hdr->ls_seqnum));
 }
 
 #define LOG_LSDB_GROUP_SEP " "
