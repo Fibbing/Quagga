@@ -80,7 +80,7 @@ extern int ospf_zebra_lookup_query (u_int32_t);
 /* Return the number of FIB nexthops for the given destination
  * and complete the associated route object.
  * @see: The query is initiated in ospf_zebra_lookup_query */
-extern int ospf_zebra_lookup_read (u_int32_t addr, struct ospf_route *route);
+extern int ospf_zebra_lookup_read (u_int32_t, struct ospf_route *route);
 
 
 #endif /* _ZEBRA_OSPF_ZEBRA_H */

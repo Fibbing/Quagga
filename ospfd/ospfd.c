@@ -683,7 +683,6 @@ ospf_area_free (struct ospf_area *area)
   /* Cancel timer. */
   OSPF_TIMER_OFF (area->t_stub_router);
   OSPF_TIMER_OFF (area->t_opaque_lsa_self);
-#endif /* HAVE_OPAQUE_LSA */
 
   if (OSPF_IS_AREA_BACKBONE (area))
     area->ospf->backbone = NULL;
@@ -1852,7 +1851,9 @@ ospf_fibbing_add(struct ospf *ospf, struct prefix_ipv4 p, struct in_addr via,
 		r->ttl = ttl;
 		r->via = via;
 		r->cost = cost;
+#ifdef HAVE_WITHDRAW
 		r->withdraw = withdraw;
+#endif
 		r->p = p;
 		if (range != 1) {
 			nibble = (uint8_t*)&r->p.prefix.s_addr;

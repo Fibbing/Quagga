@@ -1305,33 +1305,32 @@ ospf_zebra_connected (struct zclient *zclient)
   zclient_send_requests (zclient, VRF_DEFAULT);
 }
 
-static int
-_read_non_block(int nbytes)
+static ssize_t
+_stream_read_block(struct stream *s, int fd, size_t len)
 {
-  int rval;
+	ssize_t left, rval;
 
-  while (nbytes) {
+	left = len;
+
+  while (left > 0) {
 eretry:
-    rval = stream_read_try (zclient->ibuf, zclient->sock, nbytes);
+    rval = stream_read_try (s, fd, left);
 	if (rval == -2)
 		goto eretry;
 	if (rval == -1) {
-	  zlog_err ("%s: Failed to read response from Zebra!", __func__);
-	  return nbytes;
+	  zlog_err ("%s: Could not read more than %ld", __func__, len - left);
+	  break;
 	}
-	nbytes -= rval;
+	left -= rval;
   }
-  return 0;
+  return len - left;
 }
 
 int
 ospf_zebra_lookup_read (u_int32_t addr,  struct ospf_route *route)
 {
   struct stream *s;
-  uint16_t length;
-  u_char marker;
-  u_char version;
-  uint16_t command;
+  struct zserv_header hdr;
   struct in_addr raddr;
   u_char nexthop_num;
   u_char i;
@@ -1340,37 +1339,44 @@ ospf_zebra_lookup_read (u_int32_t addr,  struct ospf_route *route)
 
   s = zclient->ibuf;
   stream_reset (s);
-  /* read header length field */
-  _read_non_block(2);
 
-  length = stream_getw (s) - 2;
-  if (length < 13)  /* 1 + 1 + 2 + 4 + 4 + 1 */
+  /* Cannot use zclient_read_header as zclient->sock is non-blocking */
+  if (_stream_read_block (s, zclient->sock, ZEBRA_HEADER_SIZE) !=
+		  ZEBRA_HEADER_SIZE)
     {
-      zlog_err ("%s: Uncomplete message from zebra (%u)!", __func__, length);
-	  return 0;
-    }
+      zlog_err("%s: Cannot read zebra header", __func__);
+      return 0;
+	}
 
-  /* Already read 2 bytes, scan until the end */
-  _read_non_block(length);
+  hdr.length = stream_getw (s) - ZEBRA_HEADER_SIZE;
+  hdr.marker = stream_getc (s);
+  hdr.version = stream_getc (s);
+  hdr.vrf_id = stream_getw (s);
+  hdr.command = stream_getw (s);
 
-  marker = stream_getc (s);
-  version = stream_getc (s);
-
-  if (version != ZSERV_VERSION || marker != ZEBRA_HEADER_MARKER)
+  if (hdr.version != ZSERV_VERSION || hdr.marker != ZEBRA_HEADER_MARKER)
     {
       zlog_err("%s: socket %d version mismatch, marker %d, version %d",
-               __func__, zclient->sock, marker, version);
+               __func__, zclient->sock, hdr.marker, hdr.version);
+      return -1;
+    }
+
+  if (hdr.length && _stream_read_block (s, zclient->sock, hdr.length) !=
+		  hdr.length)
+    {
+      zlog_err("%s: Missing data after the header (tried to read %u bytes)",
+			   __func__, hdr.length);
       return 0;
     }
 
-  command = stream_getw (s);
-  if (command != ZEBRA_IPV4_NEXTHOP_LOOKUP)
+  if (hdr.command != ZEBRA_IPV4_NEXTHOP_LOOKUP)
 	{
 	  zlog_err ("%s: Unexpected Zebra command reply, %s instead of %s",
-			    __func__, zserv_command_string(command),
+			    __func__, zserv_command_string(hdr.command),
 				zserv_command_string(ZEBRA_IPV4_NEXTHOP_LOOKUP));
 	  return 0;
 	}
+
   raddr.s_addr = stream_get_ipv4 (s);
   if (raddr.s_addr != addr)
 	{
@@ -1388,41 +1394,35 @@ ospf_zebra_lookup_read (u_int32_t addr,  struct ospf_route *route)
   zlog_debug("%s: Found %d nexthops with metric %d",
 		     __func__, nexthop_num, route->cost);
   for (list_delete_all_node (route->paths), i = 0;
-		 i < nexthop_num && length; ++i) {
+		 i < nexthop_num; ++i) {
 	type = stream_getc (s);
-	--length;
 	new = ospf_path_new();
 	new->adv_router = raddr;
 	switch (type)
 	  {
 	  case ZEBRA_NEXTHOP_IPV4:
-	length -= 4;
-	if (length >= 0) new->nexthop.s_addr = stream_get_ipv4 (s);
-	break;
+		new->nexthop.s_addr = stream_get_ipv4 (s);
+		break;
 	  case ZEBRA_NEXTHOP_IPV4_IFINDEX:
-	length -= 8;
-	if (length < 0) break;
-	new->nexthop.s_addr = stream_get_ipv4 (s);
-	new->ifindex = stream_getl (s);
-	break;
+		new->nexthop.s_addr = stream_get_ipv4 (s);
+		new->ifindex = stream_getl (s);
+		break;
 	  case ZEBRA_NEXTHOP_IFINDEX:
 	  case ZEBRA_NEXTHOP_IFNAME:
-	length -= 4;
-	if (length >= 0) new->ifindex = stream_getl (s);
-	break;
+		new->ifindex = stream_getl (s);
+		break;
 	  default:
-			/* never reached */
-	zlog_err("%s: Unexpected nexthop type! %u",
-			__func__, type);
-	ospf_path_free (new);
-	break;
-	  }
-	if (length >= 0)
-        listnode_add (route->paths, new);
-	else
+		/* never reached */
+		zlog_err("%s: Unexpected nexthop type! %u",
+				__func__, type);
 		ospf_path_free (new);
+		new = NULL;
+		break;
+	  }
+	if (new)
+	  listnode_add (route->paths, new);
   }
-  if (i < nexthop_num || length < 0)
+  if (i < nexthop_num)
 	  zlog_err ("%s: Couldn't read all nexthops! Stopped after %u",
 			  __func__, i);
   return nexthop_num;
@@ -1439,7 +1439,7 @@ ospf_zebra_lookup_query (u_int32_t addr)
 
   s = zclient->obuf;
   stream_reset (s);
-  zclient_create_header (s, ZEBRA_IPV4_NEXTHOP_LOOKUP);
+  zclient_create_header (s, ZEBRA_IPV4_NEXTHOP_LOOKUP, VRF_DEFAULT);
   stream_put_ipv4 (s, addr);
 
   stream_putw_at (s, 0, stream_get_endp (s));
