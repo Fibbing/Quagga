@@ -1985,10 +1985,20 @@ fibbing_add(struct ospf *ospf, struct batched_fibbing_route *r)
     ei->ttl = r->ttl;
 
     /* Generate, install, and flood a new T-5 LSA */
-    lsa = ospf_external_lsa_originate (ospf, ei);
+	/* This route might have been flushed by us before, so an LSA for its
+	 * link id could still be in the LSDB. */
+	if (!(lsa = ospf_external_info_find_lsa (ospf, &ei->p)))
+      lsa = ospf_external_lsa_originate (ospf, ei);
+	/* Update and refresh the old copy, also bootstrap the LSA seqnum */
+	else if (IS_LSA_SELF (lsa))
+	  ospf_external_lsa_refresh (ospf, lsa, ei, LSA_REFRESH_FORCE);
+	/* Houston ... */
+	else
+		zlog_warn ("fibbing_add() : %s is already fibbed by this router!",
+				   inet_ntoa (ei->p.prefix));
     if (!lsa)
       {
-        zlog_debug ("Failed to originate the fibbing LSA!");
+        zlog_warn ("Failed to originate the fibbing LSA!");
         return 0;
       }
 
