@@ -1990,7 +1990,7 @@ fibbing_add(struct ospf *ospf, struct batched_fibbing_route *r)
 	if (!(lsa = ospf_external_info_find_lsa (ospf, &ei->p)))
       lsa = ospf_external_lsa_originate (ospf, ei);
 	/* Update and refresh the old copy, also bootstrap the LSA seqnum */
-	else if (IS_LSA_SELF (lsa))
+	else if (IS_LSA_MAXAGE (lsa))
 	  ospf_external_lsa_refresh (ospf, lsa, ei, LSA_REFRESH_FORCE);
 	/* Houston ... */
 	else
