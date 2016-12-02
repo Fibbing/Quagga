@@ -761,21 +761,6 @@ ospf_route_cmp (struct ospf *ospf, struct ospf_route *r1,
   return (r1->cost - r2->cost);
 }
 
-static int
-ospf_path_exist (struct list *plist, struct in_addr nexthop,
-		 struct ospf_interface *oi)
-{
-  struct listnode *node, *nnode;
-  struct ospf_path *path;
-
-  for (ALL_LIST_ELEMENTS (plist, node, nnode, path))
-    if (IPV4_ADDR_SAME (&path->nexthop, &nexthop) &&
-	path->ifindex == oi->ifp->ifindex)
-      return 1;
-
-  return 0;
-}
-
 void
 ospf_route_copy_nexthops_from_vertex (struct ospf_route *to,
 				      struct vertex *v)
@@ -793,13 +778,11 @@ ospf_route_copy_nexthops_from_vertex (struct ospf_route *to,
 
       if (nexthop->oi != NULL)
 	{
-	  if (! ospf_path_exist (to->paths, nexthop->router, nexthop->oi))
-	    {
-	      path = ospf_path_new ();
-	      path->nexthop = nexthop->router;
-	      path->ifindex = nexthop->oi->ifp->ifindex;
-	      listnode_add_sort (to->paths, path);
-	    }
+	  path = ospf_path_new ();
+	  path->nexthop = nexthop->router;
+	  path->ifindex = nexthop->oi->ifp->ifindex;
+	  if (!listnode_add_sort_unique (to->paths, path))
+	    ospf_path_free (path); /* The path was not added */
 	}
     }
 }
@@ -827,14 +810,16 @@ void
 ospf_route_copy_nexthops (struct ospf_route *to, struct list *from)
 {
   struct listnode *node, *nnode;
-  struct ospf_path *path;
+  struct ospf_path *path, *copy;
 
   assert (to->paths);
 
   for (ALL_LIST_ELEMENTS (from, node, nnode, path))
-    /* The same routes are just discarded. */
-    if (!ospf_path_lookup (to->paths, path))
-      listnode_add_sort (to->paths, ospf_path_dup (path));
+    {
+	  copy = ospf_path_dup (path);
+	  if (!listnode_add_sort_unique (to->paths, copy))
+	    ospf_path_free (copy);
+	}
 }
 
 void
