@@ -57,9 +57,9 @@ void
 listnode_add (struct list *list, void *val)
 {
   struct listnode *node;
-  
+
   assert (val != NULL);
-  
+
   node = listnode_new ();
 
   node->prev = list->tail;
@@ -85,9 +85,9 @@ listnode_add_sort (struct list *list, void *val)
 {
   struct listnode *n;
   struct listnode *new;
-  
+
   assert (val != NULL);
-  
+
   new = listnode_new ();
   new->data = val;
 
@@ -96,7 +96,7 @@ listnode_add_sort (struct list *list, void *val)
       for (n = list->head; n; n = n->next)
 	{
 	  if ((*list->cmp) (val, n->data) < 0)
-	    {	    
+	    {
 	      new->next = n;
 	      new->prev = n->prev;
 
@@ -122,13 +122,62 @@ listnode_add_sort (struct list *list, void *val)
   list->count++;
 }
 
+/* Same than listnode_add_sort except no insertion is performed if val is
+ * already present.
+ * return 0 if val was already in the list
+ */
+int listnode_add_sort_unique (struct list *list, void *val)
+{
+  struct listnode *n, *new;
+  int cmp_val;
+
+  assert (val != NULL);
+  assert (list->cmp);
+
+  new = listnode_new ();
+  new->data = val;
+
+  for (n = list->head; n; n = n->next)
+	{
+	  if ((cmp_val = (*list->cmp) (val, n->data)) < 0)
+	    {
+	      new->next = n;
+	      new->prev = n->prev;
+
+	      if (n->prev)
+		n->prev->next = new;
+	      else
+		list->head = new;
+	      n->prev = new;
+	      list->count++;
+	      return 1;
+	    }
+      else if (cmp_val == 0) /* val was already in the list */
+	    {
+		  listnode_free (new);
+		  return 0;
+	    }
+	}
+
+  new->prev = list->tail;
+
+  if (list->tail)
+    list->tail->next = new;
+  else
+    list->head = new;
+
+  list->tail = new;
+  list->count++;
+  return 1;
+}
+
 void
 listnode_add_after (struct list *list, struct listnode *pp, void *val)
 {
   struct listnode *nn;
-  
+
   assert (val != NULL);
-  
+
   nn = listnode_new ();
   nn->data = val;
 
@@ -271,9 +320,9 @@ void
 list_add_node_prev (struct list *list, struct listnode *current, void *val)
 {
   struct listnode *node;
-  
+
   assert (val != NULL);
-  
+
   node = listnode_new ();
   node->next = current;
   node->data = val;
@@ -294,9 +343,9 @@ void
 list_add_node_next (struct list *list, struct listnode *current, void *val)
 {
   struct listnode *node;
-  
+
   assert (val != NULL);
-  
+
   node = listnode_new ();
   node->prev = current;
   node->data = val;
