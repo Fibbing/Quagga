@@ -124,6 +124,7 @@ struct ospf_route
 extern struct ospf_path *ospf_path_new (void);
 extern void ospf_path_free (struct ospf_path *);
 extern struct ospf_path *ospf_path_lookup (struct list *, struct ospf_path *);
+extern int ospf_path_cmp (struct ospf_path *, struct ospf_path *);
 extern struct ospf_route *ospf_route_new (void);
 extern void ospf_route_free (struct ospf_route *);
 extern void ospf_route_delete (struct route_table *);
